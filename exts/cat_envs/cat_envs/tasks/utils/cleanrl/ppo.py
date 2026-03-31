@@ -76,20 +76,20 @@ class Agent(nn.Module):
         ].shape
         SINGLE_ACTION_SPACE = envs.unwrapped.single_action_space.shape
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(SINGLE_OBSERVATION_SPACE).prod(), 512)),
+            layer_init(nn.Linear(np.array(SINGLE_OBSERVATION_SPACE).prod(), 128)),
             nn.ELU(),
-            layer_init(nn.Linear(512, 256)),
+            layer_init(nn.Linear(128, 128)),
             nn.ELU(),
-            layer_init(nn.Linear(256, 128)),
+            layer_init(nn.Linear(128, 128)),
             nn.ELU(),
             layer_init(nn.Linear(128, 1), std=1.0),
         )
         self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(np.array(SINGLE_OBSERVATION_SPACE).prod(), 512)),
+            layer_init(nn.Linear(np.array(SINGLE_OBSERVATION_SPACE).prod(), 128)),
             nn.ELU(),
-            layer_init(nn.Linear(512, 256)),
+            layer_init(nn.Linear(128, 128)),
             nn.ELU(),
-            layer_init(nn.Linear(256, 128)),
+            layer_init(nn.Linear(128, 128)),
             nn.ELU(),
             layer_init(nn.Linear(128, np.prod(SINGLE_ACTION_SPACE)), std=0.01),
         )

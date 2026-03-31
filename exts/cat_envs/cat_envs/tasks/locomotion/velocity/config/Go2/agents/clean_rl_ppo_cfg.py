@@ -8,10 +8,10 @@ from cat_envs.tasks.utils.cleanrl.rl_cfg import CleanRlPpoActorCriticCfg
 
 
 @configclass
-class Solo12FlatPPORunnerCfg(CleanRlPpoActorCriticCfg):
+class Go2FlatPPORunnerCfg(CleanRlPpoActorCriticCfg):
     save_interval = 50
 
-    learning_rate = 3.0e-4
+    learning_rate = 1.0e-3
     num_steps = 24
     num_iterations = 2000
     gamma = 0.99
@@ -24,11 +24,11 @@ class Solo12FlatPPORunnerCfg(CleanRlPpoActorCriticCfg):
     max_grad_norm = 1.0
     norm_adv = True
     clip_vloss = True
-    anneal_lr = True
+    anneal_lr = False
 
-    experiment_name = "solo12_flat"
+    experiment_name = "go2_flat"
     logger = "tensorboard"
-    wandb_project = "solo12_flat"
+    wandb_project = "go2_flat"
 
     load_run = ".*"
     load_checkpoint = "model_.*.pt"

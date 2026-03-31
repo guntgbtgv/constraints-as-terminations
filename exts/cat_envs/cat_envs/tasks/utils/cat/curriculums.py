@@ -10,7 +10,7 @@ the curriculum introduced by the function.
 """
 
 from __future__ import annotations
-
+import isaaclab.envs.mdp as mdp
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -40,3 +40,9 @@ def modify_constraint_p(
     env.constraint_manager.set_term_cfg(term_name, term_cfg)
 
     return init_max_p
+
+def override_command_range(env, env_ids, old_value, value, num_steps):
+    # Override after num_steps
+    if env.common_step_counter > num_steps:
+        return value
+    return mdp.modify_term_cfg.NO_CHANGE

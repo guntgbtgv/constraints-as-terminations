@@ -219,6 +219,19 @@ def min_base_height(
     robot = env.scene[asset_cfg.name]
     return limit - robot.data.root_pos_w[:, 2]
 
+def foot_height(
+    env: ManagerBasedRLEnv,
+    # limit: float,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """ maximum foot height    """
+    asset = env.scene[asset_cfg.name]
+    # print("body_link_pos_w: ", asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2])
+    # print("root_pos_w: ", asset.data.root_pos_w[:, 2])
+    # print("diff: ", asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2] - asset.data.root_pos_w[:, 2].unsqueeze(1))
+    return asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2] - asset.data.root_pos_w[:, 2].unsqueeze(1)
+
+
 
 def no_move(
     env: ManagerBasedRLEnv,

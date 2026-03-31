@@ -79,7 +79,7 @@ if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+# from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
@@ -169,6 +169,26 @@ def main():
     runner.agent.load(resume_path)
     # set agent to evaluation mode
     runner.agent.set_running_mode("eval")
+
+
+    print("[INFO] Creating and exporting model to .onnx and .pt")
+    # model = runner.agent.models["policy"]
+    # state = torch.load(resume_path)
+    # model.load_state_dict(state)
+    # model.eval()
+
+    obs_dim = env.observation_space.shape[0]
+    dummy_input = torch.randn(1, obs_dim, device=env_cfg.sim.device, requires_grad=False)
+    print(runner)
+
+    save_dir = os.path.dirname(resume_path)
+    
+    pt_path = os.path.join(save_dir, "policy.pt")
+    torch.jit.trace(runner, dummy_input).save(pt_path)
+    print(f"[INFO] Exported .pt model to {pt_path}")
+
+
+
 
     # reset environment
     obs, _ = env.reset()
