@@ -35,6 +35,15 @@ class CaTEnv(ManagerBasedRLEnv):
         # prepare the managers
         # -- constraint manager
 
+        # self.spring_pos = torch.zeros((self.cfg.scene.num_envs,1), device=self.cfg.sim.device)
+        # # print(self.scene.articulations)
+        # # print(self.scene.articulations["robot"])
+
+        # self.spring_joint_ids, _ = self.scene.articulations["robot"].find_joints(["trunk"])
+        # # print("spring_joint_ids: ", self.spring_joint_ids)
+
+
+
         if hasattr(self.cfg, "constraints"):
             self.constraint_manager = ConstraintManager(self.cfg.constraints, self)
             print("[INFO] Constraint Manager: ", self.constraint_manager)
@@ -72,6 +81,7 @@ class CaTEnv(ManagerBasedRLEnv):
             self._sim_step_counter += 1
             # set actions into buffers
             self.action_manager.apply_action()
+            # self.scene.articulations["robot"].set_joint_position_target(self.spring_pos, joint_ids=self.spring_joint_ids)
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate

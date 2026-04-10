@@ -33,26 +33,29 @@ import cat_envs.tasks.utils.mdp.terminations as terminations
 import cat_envs.tasks.utils.mdp.events as events
 import cat_envs.tasks.utils.mdp.commands as commands
 import cat_envs.tasks.utils.mdp.rewards as rewards
+import cat_envs.tasks.utils.mdp.observations as observations
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG, UNITREE_GO2_ARMATURE_CFG  # isort: skip
+from isaaclab_assets.robots.articulate_trunk_quadruped import ARTICULATE_TRUNK_QUADRUPED_CFG  # isort: skip
 
 
 JOINT_NAMES = [
-    "FR_hip_joint",
-    "FR_thigh_joint",
-    "FR_calf_joint",
-    "FL_hip_joint",
-    "FL_thigh_joint",
-    "FL_calf_joint",
-    "RR_hip_joint",
-    "RR_thigh_joint",
-    "RR_calf_joint",
-    "RL_hip_joint",
-    "RL_thigh_joint",
-    "RL_calf_joint",
+    "HAA_FR",
+    "HFE_FR",
+    "KFE_FR",
+    "HAA_FL",
+    "HFE_FL",
+    "KFE_FL",
+    "trunk",
+    "HAA_HR",
+    "HFE_HR",
+    "KFE_HR",
+    "HAA_HL",
+    "HFE_HL",
+    "KFE_HL",
 ]
 
 
@@ -84,7 +87,7 @@ class MySceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
     # robots
-    robot: ArticulationCfg = UNITREE_GO2_ARMATURE_CFG.replace(
+    robot: ArticulationCfg = ARTICULATE_TRUNK_QUADRUPED_CFG.replace(
         prim_path="/World/envs/env_.*/Robot"
     )
     # sensors
@@ -153,9 +156,16 @@ class ObservationsCfg:
             func=mdp.generated_commands,
             params={"command_name": "base_velocity"},
         )
-        projected_gravity = ObsTerm(
-            func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05)
-        )
+        # projected_gravity = ObsTerm(
+        #     func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05)
+        # )
+        avg_projected_gravity = ObsTerm(
+            func=observations.avg_projected_gravity,
+            noise=Unoise(n_min=-0.05, n_max=0.05),
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=["base_link", "base_link_2"])
+            },
+        )        
         joint_pos = ObsTerm(
             func=mdp.joint_pos,
             params={
@@ -203,7 +213,8 @@ class EventCfg:
             "pose_range": {
                 "x": (-0.5, 0.5),
                 "y": (-0.5, 0.5),
-                "yaw": (-3.14, 3.14),
+                "pitch": (0.5, 1.0),
+                # "yaw": (-3.14, 3.14),
             },
             "velocity_range": {
                 "x": (-0.5, 0.5),
@@ -287,7 +298,7 @@ class ConstraintsCfg:
         func=constraints.action_rate,
         max_p=0.25,
         params={"limit": 200.0, 
-                "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
+                "asset_cfg": SceneEntityCfg("robot")}, #joint_names=JOINT_NAMES
     )
 
     # Safety Hard constraints
@@ -296,7 +307,7 @@ class ConstraintsCfg:
         func=constraints.contact,
         max_p=1.0,
         params={
-                "asset_cfg": SceneEntityCfg("contact_forces", body_names=["base", "Head_upper", "Head_lower", "FL_calf.*", "FR_calf.*", "RL_calf.*", "RR_calf.*",])},
+                "asset_cfg": SceneEntityCfg("contact_forces", body_names=["base_link", "thigh.*", "shank.*"])},
     )
     # foot_contact_force = ConstraintTerm(
     #     func=constraints.foot_contact_force,
@@ -318,44 +329,51 @@ class ConstraintsCfg:
     # )
 
     # Style constraints
-    hip_position = ConstraintTerm(
+    HAA_position = ConstraintTerm(
         func=constraints.joint_position_when_moving_forward,
         max_p=0.25,
         params={
             "limit": 0.2, 
             "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["RL_hip.*", "RR_hip.*", "FL_hip.*", "FR_hip.*",])},
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["HAA.*"])},
     )
-    thigh_position = ConstraintTerm(
+    HFE_position = ConstraintTerm(
         func=constraints.joint_position_when_moving_forward,
         max_p=0.25,
         params={
             "limit": 2.0, 
             "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["RL_thigh.*", "RR_thigh.*", "FL_thigh.*", "FR_thigh.*",])},
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["HFE.*"])},
     )
-    calf_position = ConstraintTerm(
+    KFE_position = ConstraintTerm(
         func=constraints.joint_position_when_moving_forward,
         max_p=0.25,
         params={
             "limit": 0.9, 
             "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["RL_calf.*", "RR_calf.*", "FL_calf.*", "FR_calf.*",])},
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["KFE.*"])},
     )        
-    base_orientation = ConstraintTerm(
-        func=constraints.base_orientation, 
-        max_p=0.25, 
+    flat_orientation_articulate_trunk = ConstraintTerm(
+        func=constraints.flat_orientation_articulate_trunk,
+        max_p=0.25,
         params={
-            "limit": 0.1,
-            "asset_cfg": SceneEntityCfg("robot")}
-    )
+            "limit": 0.2,
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                body_names=[
+                    "base_link", 
+                    "base_link_2",
+                ],
+            ),
+        },
+    )    
     air_time = ConstraintTerm(
         func=constraints.air_time,
         max_p=0.25,
         params={
             "limit": 0.1, 
             "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*", "RL_foot.*", "RR_foot.*"])},
+            "asset_cfg": SceneEntityCfg("contact_forces", body_names=["foot.*"])},
     )
     no_move = ConstraintTerm(
         func=constraints.no_move,
@@ -376,14 +394,14 @@ class ConstraintsCfg:
     #     },
     # )
     # Other constraints:
-    base_height = ConstraintTerm(
-        func=constraints.min_base_height,
-        max_p=0.25,
-        params={
-            "limit": 0.25,
-            "asset_cfg": SceneEntityCfg("robot", body_names=["base"]),
-        },
-    )
+    # base_height = ConstraintTerm(
+    #     func=constraints.min_base_height,
+    #     max_p=0.25,
+    #     params={
+    #         "limit": 0.25,
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_.*"]),
+    #     },
+    # )
     # foot_height = ConstraintTerm(
     #     func=constraints.foot_height,
     #     max_p=0.25,
@@ -402,7 +420,7 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={
             "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=["base"]
+                "contact_forces", body_names=["base_link.*", "hip_link.*"]
             ),
             "threshold": 1.0,
         },
@@ -410,7 +428,7 @@ class TerminationsCfg:
     upside_down = DoneTerm(
         func=terminations.upside_down,
         params={
-            "limit": 0.5,
+            "limit": 0.9,
         },
     )
 
@@ -455,34 +473,34 @@ class CurriculumCfg:
     )
 
     # Style constraints
-    hip_position = CurrTerm(
+    HAA_position = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "hip_position",
+            "term_name": "HAA_position",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
     )
-    thigh_position = CurrTerm(
+    HFE_position = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "thigh_position",
+            "term_name": "HFE_position",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
     )
-    calf_position = CurrTerm(
+    KFE_position = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "calf_position",
+            "term_name": "KFE_position",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
     )        
-    base_orientation = CurrTerm(
+    flat_orientation_articulate_trunk = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "base_orientation",
+            "term_name": "flat_orientation_articulate_trunk",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
@@ -511,14 +529,14 @@ class CurriculumCfg:
             "init_max_p": 0.1,
         }
     )
-    base_height = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "base_height",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.1,
-        }
-    )
+    # base_height = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "base_height",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.1,
+    #     }
+    # )
     # foot_height = CurrTerm(
     #     func=curriculums.modify_constraint_p,
     #     params={
@@ -599,7 +617,7 @@ class CurriculumCfg:
 
 
 @configclass
-class Go2FlatEnvCfg(ManagerBasedRLEnvCfg):
+class ArticulateTrunkQuadrupedFlatEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
@@ -638,7 +656,7 @@ class Go2FlatEnvCfg(ManagerBasedRLEnvCfg):
             self.scene.contact_forces.update_period = self.sim.dt
 
 
-class Go2FlatEnvCfg_PLAY(Go2FlatEnvCfg):
+class ArticulateTrunkQuadrupedFlatEnvCfg_PLAY(ArticulateTrunkQuadrupedFlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
