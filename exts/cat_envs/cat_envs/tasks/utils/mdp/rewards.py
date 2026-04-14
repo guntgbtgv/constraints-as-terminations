@@ -105,6 +105,33 @@ def track_lin_vel_xy_yaw_frame_exp(
     )
     return torch.exp(-lin_vel_error / std**2)
 
+def track_lin_vel_xy_yaw_frame_artuculate_trunk_exp(
+    env, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Reward tracking of linear velocity commands (xy axes) in the gravity aligned robot frame using exponential kernel."""
+    # extract the used quantities (to enable type-hinting)
+    asset = env.scene[asset_cfg.name]
+
+    quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
+    quat_01 = quat[:,0,:]
+    quat_02 = quat[:,1,:]
+    quat_12 = quat_mul(quat_inv(quat_01), quat_02)
+
+    rotation_angle = torch.tensor([-torch.pi/2, 0, 0], device=quat.device)
+    rotation_angle = rotation_angle.unsqueeze(0).repeat(quat[:,1,:].size(0) , 1)  
+    quat_22p = quat_from_euler_xyz(roll=rotation_angle[:,0], pitch=rotation_angle[:,1] , yaw=rotation_angle[:,2])
+
+    quat_02p =  quat_mul(quat_01, quat_mul(quat_12, quat_22p))
+
+    vel_yaw_1 = quat_apply_inverse(yaw_quat(quat_01), asset.data.body_lin_vel_w[:, 0, :3])
+    vel_yaw_2 = quat_apply_inverse(yaw_quat(quat_02p), asset.data.body_lin_vel_w[:, 1, :3])
+    vel_yaw_avg = 0.5*(vel_yaw_1 + vel_yaw_2)
+
+    lin_vel_error = torch.sum(
+        torch.square(env.command_manager.get_command(command_name)[:, :2] - vel_yaw_avg[:, :2]), dim=1
+    )
+    return torch.exp(-lin_vel_error / std**2)
+
 
 def track_ang_vel_z_world_exp(
     env, command_name: str, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")

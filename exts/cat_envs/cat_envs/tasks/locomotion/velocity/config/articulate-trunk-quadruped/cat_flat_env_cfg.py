@@ -214,7 +214,7 @@ class EventCfg:
                 "x": (-0.5, 0.5),
                 "y": (-0.5, 0.5),
                 "pitch": (0.5, 1.0),
-                # "yaw": (-3.14, 3.14),
+                "yaw": (-3.14, 3.14),
             },
             "velocity_range": {
                 "x": (-0.5, 0.5),
@@ -261,10 +261,14 @@ class RewardsCfg:
     #     weight=1.0,
     #     params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     # )
-    track_lin_vel_xy_yaw_frame_exp = RewTerm(
-        func=rewards.track_lin_vel_xy_yaw_frame_exp,
+    track_lin_vel_xy_yaw_frame_artuculate_trunk_exp = RewTerm(
+        func=rewards.track_lin_vel_xy_yaw_frame_artuculate_trunk_exp,
         weight=1,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+        params={
+            "command_name": "base_velocity", 
+            "std": math.sqrt(0.25), 
+            "asset_cfg": SceneEntityCfg("robot", body_names=["base_link", "base_link_2"])
+        },
     )        
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_exp,
@@ -337,22 +341,22 @@ class ConstraintsCfg:
             "velocity_deadzone": 0.1,
             "asset_cfg": SceneEntityCfg("robot", joint_names=["HAA.*"])},
     )
-    HFE_position = ConstraintTerm(
-        func=constraints.joint_position_when_moving_forward,
-        max_p=0.25,
-        params={
-            "limit": 2.0, 
-            "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["HFE.*"])},
-    )
-    KFE_position = ConstraintTerm(
-        func=constraints.joint_position_when_moving_forward,
-        max_p=0.25,
-        params={
-            "limit": 0.9, 
-            "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["KFE.*"])},
-    )        
+    # HFE_position = ConstraintTerm(
+    #     func=constraints.joint_position_when_moving_forward,
+    #     max_p=0.25,
+    #     params={
+    #         "limit": 2.0, 
+    #         "velocity_deadzone": 0.1,
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["HFE.*"])},
+    # )
+    # KFE_position = ConstraintTerm(
+    #     func=constraints.joint_position_when_moving_forward,
+    #     max_p=0.25,
+    #     params={
+    #         "limit": 0.9, 
+    #         "velocity_deadzone": 0.1,
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["KFE.*"])},
+    # )        
     flat_orientation_articulate_trunk = ConstraintTerm(
         func=constraints.flat_orientation_articulate_trunk,
         max_p=0.25,
@@ -481,22 +485,22 @@ class CurriculumCfg:
             "init_max_p": 0.25,
         },
     )
-    HFE_position = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "HFE_position",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.25,
-        },
-    )
-    KFE_position = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "KFE_position",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.25,
-        },
-    )        
+    # HFE_position = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "HFE_position",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )
+    # KFE_position = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "KFE_position",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )        
     flat_orientation_articulate_trunk = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
