@@ -186,7 +186,11 @@ def power_loss(env: ManagerBasedRLEnv, K: float, Coulomb: float, viscous: float,
     loss_f = friction*qdot
     loss_J = 1/K*(tau + friction)**2
 
-    return torch.sum((loss_f + loss_J), dim=1)
+    divider_lin = 1000.0 * torch.abs(asset.data.root_lin_vel_b[:,0])
+    divider_ang = 0.0 * torch.abs(asset.data.root_ang_vel_b[:,2])
+    divider = divider_ang + divider_lin
+
+    return torch.exp(-torch.sum(loss_f + loss_J, dim=1) / divider)
 
 def joint_position_penalty(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, stand_still_scale: float, velocity_threshold: float

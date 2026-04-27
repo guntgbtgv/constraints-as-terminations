@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg, ManagerTermBase
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -94,3 +94,28 @@ def push_by_setting_velocity_with_random_envs(
 
     # set the velocities into the physics simulation
     asset.write_root_velocity_to_sim(vel_w, env_ids=push_idx)
+
+def randomize_joint_position_offset(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the robot joints with offsets around the default position and velocity by the given ranges.
+
+    This function samples random values from the given ranges and biases the default joint positions and velocities
+    by these values. The biased values are then set into the physics simulation.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # # cast env_ids to allow broadcasting
+    # if asset_cfg.joint_ids != slice(None):
+    #     iter_env_ids = env_ids[:, None]
+    # else:
+    #     iter_env_ids = env_ids
+
+    # get default joint state
+    joint_pos = asset.data.default_joint_pos[0, asset_cfg.joint_ids] # [iter_env_ids, asset_cfg.joint_ids].clone()
+    rand_pos = math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
+    env.action_manager.cfg.joint_pos.offset = joint_pos + rand_pos

@@ -166,6 +166,9 @@ class ObservationsCfg:
                 "asset_cfg": SceneEntityCfg("robot", body_names=["base_link", "base_link_2"])
             },
         )        
+        # default_joint_pos = ObsTerm(
+        #     func=observations.default_joint_pos,
+        # )
         joint_pos = ObsTerm(
             func=mdp.joint_pos,
             params={
@@ -206,6 +209,15 @@ class EventCfg:
         },
     )
 
+    # randomize_joint_position_offset = EventTerm(
+    #     func=events.randomize_joint_position_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "position_range": (-0.5, 0.5),
+    #     }
+    # )
+
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -228,10 +240,10 @@ class EventCfg:
     )
 
     reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": (0.5, 1.5),
+            "position_range": (-0.5, 0.5),
             "velocity_range": (-0.0, 0.0),
         },
     )
@@ -275,6 +287,15 @@ class RewardsCfg:
         weight=0.5,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
+    # power_loss = RewTerm(
+    #     func=rewards.power_loss,
+    #     weight=0.5,
+    #     params={
+    #         "K": 0.05640625,
+    #         "Coulomb": 0.05,
+    #         "viscous": 0.0,
+    #     }
+    # )
 
 
 @configclass

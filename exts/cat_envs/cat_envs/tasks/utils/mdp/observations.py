@@ -22,7 +22,7 @@ from isaaclab.utils.math import quat_mul, quat_inv, quat_from_euler_xyz, quat_ap
 
 if TYPE_CHECKING:
     # from omni.isaac.lab.envs import ManagerBasedEnv
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def joint_pos(
@@ -51,6 +51,17 @@ def joint_vel(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_vel[:, asset.find_joints(names, preserve_order=True)[0]]
+
+def default_joint_pos(    
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    asset: Articulation = env.scene[asset_cfg.name]
+    default_pos = asset.data.default_joint_pos[:,asset_cfg.joint_ids]
+    offset = torch.zeros_like(default_pos)
+    offset[:,:] = env.action_manager.cfg.joint_pos.offset 
+    return offset
+
 
 def slerp_torch(q1: torch.Tensor,
                 q2: torch.Tensor,
