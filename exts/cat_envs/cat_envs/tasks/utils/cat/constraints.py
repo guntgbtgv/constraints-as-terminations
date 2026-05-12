@@ -193,7 +193,7 @@ def action_rate(
     # print("111: ", env.action_manager._action)
     # print("222: ", env.action_manager._action[:, asset_cfg.joint_ids])
     return (
-        torch.abs(
+        env.action_manager.cfg.joint_pos.scale * torch.abs(
             env.action_manager._action #[:, asset_cfg.joint_ids]
             - env.action_manager._prev_action #[:, asset_cfg.joint_ids]
         )

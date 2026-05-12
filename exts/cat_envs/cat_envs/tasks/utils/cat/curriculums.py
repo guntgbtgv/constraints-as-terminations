@@ -46,3 +46,9 @@ def override_command_range(env, env_ids, old_value, value, num_steps):
     if env.common_step_counter > num_steps:
         return value
     return mdp.modify_term_cfg.NO_CHANGE
+
+def override_joints_reset(env, env_ids, old_value, value, num_steps):
+    # After num_steps, sample a new friction coefficient uniformly
+    if env.common_step_counter > num_steps:
+        return value
+    return mdp.modify_env_param.NO_CHANGE

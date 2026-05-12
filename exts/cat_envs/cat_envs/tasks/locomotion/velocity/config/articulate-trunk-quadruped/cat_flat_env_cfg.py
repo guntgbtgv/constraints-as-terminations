@@ -122,7 +122,7 @@ class CommandsCfg:
         debug_vis=True,
         velocity_deadzone=0.1,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0)
+            lin_vel_x=(0.0, 3.0), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-0.5, 0.5)
         ),
     )
 
@@ -225,13 +225,14 @@ class EventCfg:
             "pose_range": {
                 "x": (-0.5, 0.5),
                 "y": (-0.5, 0.5),
-                "pitch": (0.5, 1.0),
-                "yaw": (-3.14, 3.14),
+                "z": (-0.01, 0.01),
+                "pitch": (0.0, 1.0),
+                "yaw": (0.0, 0.0),
             },
             "velocity_range": {
                 "x": (-0.5, 0.5),
                 "y": (-0.5, 0.5),
-                "z": (-0.0, 0.0),
+                "z": (-0.1, 0.1),
                 "roll": (-0.5, 0.5),
                 "pitch": (-0.5, 0.5),
                 "yaw": (-0.5, 0.5),
@@ -239,13 +240,25 @@ class EventCfg:
         },
     )
 
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_offset,
+    # reset_robot_joints = EventTerm(
+    #     func=mdp.reset_joints_by_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "position_range": (-0.1, 0.1),
+    #         "velocity_range": (-1.0, 1.0),
+    #     },
+    # )
+
+    reset_joints_from_dataset = EventTerm(
+        func=events.reset_joints_from_dataset,
         mode="reset",
         params={
-            "position_range": (-0.5, 0.5),
-            "velocity_range": (-0.0, 0.0),
-        },
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+            "position_range": (-0.1, 0.1),
+            "velocity_range": (-1.0, 1.0),
+            "sample_from_dataset": False,
+        }
     )
 
     # interval
@@ -296,6 +309,19 @@ class RewardsCfg:
     #         "viscous": 0.0,
     #     }
     # )
+    # stance_time = RewTerm(
+    #     func=rewards.feet_stance_time,
+    #     weight=2,
+    #     params={
+    #         "threshold": 0.1, 
+    #         "command_name": "base_velocity",
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["foot.*"])},
+    # )
+    # energy_new = RewTerm(
+    #     func=rewards.energy_new,
+    #     weight=-0.01,
+    #     params={"std_lin": 1000.0, "std_ang": 0.0,}
+    # )
 
 
 @configclass
@@ -322,7 +348,7 @@ class ConstraintsCfg:
     action_rate = ConstraintTerm(
         func=constraints.action_rate,
         max_p=0.25,
-        params={"limit": 200.0, 
+        params={"limit": 50.0, 
                 "asset_cfg": SceneEntityCfg("robot")}, #joint_names=JOINT_NAMES
     )
 
@@ -382,7 +408,7 @@ class ConstraintsCfg:
         func=constraints.flat_orientation_articulate_trunk,
         max_p=0.25,
         params={
-            "limit": 0.2,
+            "limit": 0.35,
             "asset_cfg": SceneEntityCfg(
                 "robot",
                 body_names=[
@@ -392,6 +418,13 @@ class ConstraintsCfg:
             ),
         },
     )    
+    # base_orientation = ConstraintTerm(
+    #     func=constraints.base_orientation, 
+    #     max_p=0.25, 
+    #     params={
+    #         "limit": 0.1,
+    #         "asset_cfg": SceneEntityCfg("robot")}
+    # )
     air_time = ConstraintTerm(
         func=constraints.air_time,
         max_p=0.25,
@@ -423,7 +456,7 @@ class ConstraintsCfg:
     #     func=constraints.min_base_height,
     #     max_p=0.25,
     #     params={
-    #         "limit": 0.25,
+    #         "limit": 0.2,
     #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_.*"]),
     #     },
     # )
@@ -445,7 +478,7 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={
             "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=["base_link.*", "hip_link.*"]
+                "contact_forces", body_names=["base_link.*", "hip_link_2", "hip_link_mirrored_2", "hip_link", "hip_link_mirrored"]
             ),
             "threshold": 1.0,
         },
@@ -455,6 +488,13 @@ class TerminationsCfg:
         params={
             "limit": 0.9,
         },
+    )
+    root_vel_error = DoneTerm(
+        func=terminations.root_vel_error,
+        params={
+            "limit": 0.5,
+            "command_name": "base_velocity"
+        }
     )
 
 
@@ -530,6 +570,14 @@ class CurriculumCfg:
             "init_max_p": 0.25,
         },
     )
+    # base_orientation = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "base_orientation",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )    
     air_time = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
@@ -573,17 +621,17 @@ class CurriculumCfg:
 
     # Curriculum for other than constraint probability
 
-    range_override_x_1 = CurrTerm(
-    func=mdp.modify_term_cfg,
-    params={
-        "address": "commands.base_velocity.ranges.lin_vel_x",
-        "modify_fn": curriculums.override_command_range,
-        "modify_params": {
-            "value": (-0.0, 2.0),
-            "num_steps": 10 * MAX_CURRICULUM_ITERATIONS,
-        }
-    }
-    )
+    # range_override_x_1 = CurrTerm(
+    # func=mdp.modify_term_cfg,
+    # params={
+    #     "address": "commands.base_velocity.ranges.lin_vel_x",
+    #     "modify_fn": curriculums.override_command_range,
+    #     "modify_params": {
+    #         "value": (-0.0, 2.0),
+    #         "num_steps": 10 * MAX_CURRICULUM_ITERATIONS,
+    #     }
+    # }
+    # )
 
     # range_override_y = CurrTerm(
     # func=mdp.modify_term_cfg,
@@ -597,17 +645,17 @@ class CurriculumCfg:
     # }
     # )   
 
-    range_override_x_2 = CurrTerm(
-    func=mdp.modify_term_cfg,
-    params={
-        "address": "commands.base_velocity.ranges.lin_vel_x",
-        "modify_fn": curriculums.override_command_range,
-        "modify_params": {
-            "value": (-0.0, 3.0),
-            "num_steps": 20 * MAX_CURRICULUM_ITERATIONS,
-        }
-    }
-    )
+    # range_override_x_2 = CurrTerm(
+    # func=mdp.modify_term_cfg,
+    # params={
+    #     "address": "commands.base_velocity.ranges.lin_vel_x",
+    #     "modify_fn": curriculums.override_command_range,
+    #     "modify_params": {
+    #         "value": (-0.0, 3.0),
+    #         "num_steps": 20 * MAX_CURRICULUM_ITERATIONS,
+    #     }
+    # }
+    # )
 
     # range_override_ang = CurrTerm(
     # func=mdp.modify_term_cfg,
@@ -622,17 +670,65 @@ class CurriculumCfg:
     # )       
 
 
-    range_override_x_3 = CurrTerm(
-    func=mdp.modify_term_cfg,
-    params={
-        "address": "commands.base_velocity.ranges.lin_vel_x",
-        "modify_fn": curriculums.override_command_range,
-        "modify_params": {
-            "value": (-0.0, 4.0),
-            "num_steps": 30 * MAX_CURRICULUM_ITERATIONS,
+    # range_override_x_3 = CurrTerm(
+    # func=mdp.modify_term_cfg,
+    # params={
+    #     "address": "commands.base_velocity.ranges.lin_vel_x",
+    #     "modify_fn": curriculums.override_command_range,
+    #     "modify_params": {
+    #         "value": (-0.0, 4.0),
+    #         "num_steps": 30 * MAX_CURRICULUM_ITERATIONS,
+    #     }
+    # }
+    # )
+
+    reset_joints = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.reset_joints_from_dataset.params.sample_from_dataset",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value": True,
+                "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+            }
         }
-    }
     )
+
+    reset_base_vx = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.reset_base.params.velocity_range.x",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value": (2.5, 3.0),
+                "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+
+    reset_base_wpitch = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.reset_base.params.velocity_range.pitch",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value": (-3.0, 3.0),
+                "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+
+    # reset_base_wyaw = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_base.params.velocity_range.yaw",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (0.0, 0.0),
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
 
 
 
@@ -662,7 +758,7 @@ class ArticulateTrunkQuadrupedFlatEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.episode_length_s = 100.0
+        self.episode_length_s = 30.0
 
         # simulation settings
         self.sim.solver_type = 0
