@@ -17,10 +17,20 @@ from isaaclab.managers import SceneEntityCfg, ManagerTermBase
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-df = pd.read_csv("inference_log_20260506_141531.csv")
+# df = pd.read_csv("inference_log_20260506_141531.csv")
+df = pd.read_csv("robot_joint_data.csv")
+# df = pd.read_csv("fixed_trunk_joint_data.csv")
 
-pos_cols = [col for col in df.columns if "joint_pos" in col]
-vel_cols = [col for col in df.columns if "joint_vel"in col]
+# pos_cols = [col for col in df.columns if "joint_pos" in col]
+# vel_cols = [col for col in df.columns if "joint_vel"in col]
+pos_cols = [
+    col for col in df.columns
+    if col.startswith("q") and not col.startswith("qdot")
+]
+vel_cols = [
+    col for col in df.columns
+    if col.startswith("qdot")
+]
 
 data_pos = torch.tensor(df[pos_cols].values, dtype=torch.float32)
 data_vel = torch.tensor(df[vel_cols].values, dtype=torch.float32)
@@ -163,10 +173,10 @@ def reset_joints_from_dataset(
     else:
         
         # data_pos = torch.tensor(
-        #    [[-0.1, 0.8, -1.5, 0.1, 0.8, -1.5, 1.0, -0.1, 0.5, -1.5, 0.1, 0.5, -1.5],   # crouched
-        #    [-0.1, -0.6, -0.7, 0.1, -0.6, -0.7, 0.0, -0.1, 1.2, -0.7, 0.1, 1.2, -0.7],  # stretched 
-        #    [-0.1, 0.4, -1.5, 0.1, 0.4, -1.5, 0.5, -0.1, 1.0, -2.0, 0.1, 1.0, -2.0],    # foreleg landing
-        #    [-0.1, 0.7, -2.0, 0.1, 0.7, -2.0, 0.5, -0.1, 1.2, -1.5, 0.1, 1.2, -1.5]],   # hindleg landing
+        #    [[0.2, 0.8, -1.5, -0.2, 0.8, -1.5, 1.0, -0.2, 0.5, -1.5, 0.2, 0.5, -1.5],   # crouched
+        #    [0.2, -0.6, -0.7, -0.2, -0.6, -0.7, 0.0, -0.2, 1.2, -0.7, 0.2, 1.2, -0.7],  # stretched 
+        #    [0.2, 0.4, -1.5, -0.2, 0.4, -1.5, 0.5, -0.2, 1.0, -2.0, 0.2, 1.0, -2.0],    # foreleg landing
+        #    [0.2, 0.7, -2.0, -0.2, 0.7, -2.0, 0.5, -0.2, 1.2, -1.5, 0.2, 1.2, -1.5]],   # hindleg landing
         #     # [[-0.1624112, 0.87693184, -1.87309827,  0.17673672,  1.21096103, -1.99519666, 0.17429623, -0.09178511,  1.42467002, -1.41669874,  0.17207183,  1.43940305, -1.6546099],
         #     # [ 0.06642797,  1.0939935,  -1.86104492, -0.05793188,  1.06444465, -1.78327756,  0.48264497, -0.32301549,  0.82283317, -1.64895404,  0.15263972,  0.90697448, -1.96417398],
         #     # [-0.25722814,  0.5237372,  -0.26222761,  0.26308583,  0.79660199, -0.60131166, 0.97865541, -0.01853016,  1.04324715, -1.76880212,  0.26597811,  1.44931495, -1.66382989],

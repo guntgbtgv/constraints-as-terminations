@@ -34,6 +34,19 @@ def feet_air_time(
     reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
     return reward
 
+def feet_stance_time(
+    env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float
+) -> torch.Tensor:
+
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    # compute the reward
+    first_air = contact_sensor.compute_first_air(env.step_dt)[:, sensor_cfg.body_ids]
+    last_contact_time = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
+    reward = torch.sum((last_contact_time - threshold) * first_air, dim=1)
+    # no reward for zero command
+    reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+    return reward
 
 def feet_air_time_positive_biped(
     env: ManagerBasedRLEnv, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg
@@ -124,11 +137,11 @@ def track_lin_vel_xy_yaw_frame_artuculate_trunk_exp(
     quat_02p =  quat_mul(quat_01, quat_mul(quat_12, quat_22p))
 
     vel_yaw_1 = quat_apply_inverse(yaw_quat(quat_01), asset.data.body_lin_vel_w[:, 0, :3])
-    vel_yaw_2 = quat_apply_inverse(yaw_quat(quat_02p), asset.data.body_lin_vel_w[:, 1, :3])
-    vel_yaw_avg = 0.5*(vel_yaw_1 + vel_yaw_2)
+    # vel_yaw_2 = quat_apply_inverse(yaw_quat(quat_02p), asset.data.body_lin_vel_w[:, 1, :3])
+    # vel_yaw_avg = 0.5*(vel_yaw_1 + vel_yaw_2)
 
     lin_vel_error = torch.sum(
-        torch.square(env.command_manager.get_command(command_name)[:, :2] - vel_yaw_avg[:, :2]), dim=1
+        torch.square(env.command_manager.get_command(command_name)[:, :2] - vel_yaw_1[:, :2]), dim=1
     )
     return torch.exp(-lin_vel_error / std**2)
 
