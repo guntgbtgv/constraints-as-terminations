@@ -1,0 +1,706 @@
+<?xml version="1.0" ?>
+<!-- Generated using onshape-to-robot -->
+<!-- Onshape https://cad.onshape.com/documents/a53bbf4eedf2666e0bc25f9b/w/86c43831d71b76734426ed53/e/3d4e0a7ffe06fc304224a4d5 -->
+<robot name="articulate-trunk-quadruped">
+  <!-- <link name="world" />
+  <joint name="world_to_base_link" type="floating">
+    <parent link="world"/>
+    <child link="base_link"/>
+  </joint> -->
+  <!-- Link base_link -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0.00916667 -1.38778e-17 -6.58845e-17" rpy="0 0 0"/>
+      <mass value="3.456"/>
+      <inertia ixx="0.0131328" ixy="-3.09174e-23" ixz="-8.72937e-17" iyy="0.003684" iyz="1.31359e-30" izz="0.0135912"/>
+    </inertial>
+    <!-- Part part_1 -->
+    <collision>
+      <origin xyz="0.02 -1.186e-44 -1.3294e-16" rpy="1.5708 -6.647e-15 3.14159"/>
+      <geometry>
+        <box size="0.06 0.08 0.2"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="-3.56565e-28 -6.647e-15 3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/part_1.stl"/>
+      </geometry>
+      <material name="part_1_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link base_link_2 -->
+  <link name="base_link_2">
+    <inertial>
+      <origin xyz="-0.0591667 1.98523e-18 -1.38778e-17" rpy="0 0 0"/>
+      <mass value="3.456"/>
+      <inertia ixx="0.0131328" ixy="9.32286e-35" ixz="-5.69908e-39" iyy="0.0135912" iyz="-8.61837e-42" izz="0.003684"/>
+    </inertial>
+    <!-- Part part_1_2 -->
+    <collision>
+      <origin xyz="-0.07 6.93889e-18 3.02877e-38" rpy="-8.6991e-40 3.38892e-37 -2.03378e-31"/>
+      <geometry>
+        <box size="0.06 0.08 0.2"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.05 6.93889e-18 2.35099e-38" rpy="-1.5708 3.38892e-37 -2.03378e-31"/>
+      <geometry>
+        <mesh filename="package://assets/part_1.stl"/>
+      </geometry>
+      <material name="part_1_2_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link hip_link -->
+  <link name="hip_link">
+    <inertial>
+      <origin xyz="-0.0266667 3.49814e-16 -0.0716667" rpy="0 0 0"/>
+      <mass value="0.603186"/>
+      <inertia ixx="0.00136943" ixy="1.05623e-17" ixz="-0.000391401" iyy="0.00202959" iyz="5.1344e-18" izz="0.00141414"/>
+    </inertial>
+    <!-- Part actuator -->
+    <collision>
+      <origin xyz="0 3.06162e-18 -0.023" rpy="-2.03378e-31 -1.03033e-33 3.14159"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 3.06162e-18 -0.023" rpy="-2.03378e-31 -1.03033e-33 3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_2 -->
+    <collision>
+      <origin xyz="-0.08 1.00594e-15 -0.096" rpy="4.11893e-16 1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.08 1.00594e-15 -0.096" rpy="4.11893e-16 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_2_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_3 -->
+    <collision>
+      <origin xyz="-3.46945e-17 4.34975e-17 -0.096" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-3.46945e-17 4.34975e-17 -0.096" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_3_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link thigh_link -->
+  <link name="thigh_link">
+    <inertial>
+      <origin xyz="5.62981e-15 -0.105 2.97783e-17" rpy="0 0 0"/>
+      <mass value="1.29293"/>
+      <inertia ixx="0.0049239" ixy="2.49073e-16" ixz="-4.8319e-23" iyy="0.000344781" iyz="2.80391e-19" izz="0.0049239"/>
+    </inertial>
+    <!-- Part thigh -->
+    <collision>
+      <origin xyz="5.63438e-15 -0.105 2.77556e-17" rpy="-1.5708 9.81315e-21 5.43341e-14"/>
+      <geometry>
+        <box size="0.04 0.04 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="5.63438e-15 -0.105 2.77556e-17" rpy="-1.5708 9.81315e-21 5.43341e-14"/>
+      <geometry>
+        <mesh filename="package://assets/thigh.stl"/>
+      </geometry>
+      <material name="thigh_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link shank_link -->
+  <link name="shank_link">
+    <inertial>
+      <origin xyz="-8.2833e-17 -0.105 1.1174e-18" rpy="0 0 0"/>
+      <mass value="0.198828"/>
+      <inertia ixx="0.000745605" ixy="7.74809e-19" ixz="-2.50722e-32" iyy="2.98242e-05" iyz="-4.38289e-20" izz="0.000745605"/>
+    </inertial>
+    <!-- Part shank -->
+    <collision>
+      <origin xyz="-8.32667e-17 -0.105 0" rpy="-1.5708 1.03161e-29 9.99201e-16"/>
+      <geometry>
+        <box size="0.03 0.03 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-8.32667e-17 -0.105 0" rpy="-1.5708 1.03161e-29 9.99201e-16"/>
+      <geometry>
+        <mesh filename="package://assets/shank.stl"/>
+      </geometry>
+      <material name="shank_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link foot_link -->
+  <link name="foot_link">
+    <inertial>
+      <origin xyz="-2.82766e-18 -3.59334e-51 -5.55112e-17" rpy="0 0 0"/>
+      <mass value="6.54498e-05"/>
+      <inertia ixx="1.63625e-08" ixy="-6.17232e-42" ixz="-3.24621e-39" iyy="1.63625e-08" iyz="-7.54294e-38" izz="1.63625e-08"/>
+    </inertial>
+    <!-- Part foot -->
+    <collision>
+      <origin xyz="0 0 -5.55112e-17" rpy="-5.94881e-30 2.04832e-31 1.27078e-33"/>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 -5.55112e-17" rpy="-5.94881e-30 2.04832e-31 1.27078e-33"/>
+      <geometry>
+        <mesh filename="package://assets/foot.stl"/>
+      </geometry>
+      <material name="foot_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Joint from shank_link to foot_link -->
+  <joint name="Foot_HR" type="fixed" dont_collapse="true">
+    <origin xyz="-1.94289e-16 -0.21 0" rpy="1.5708 1.5708 0"/>
+    <parent link="shank_link"/>
+    <child link="foot_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10"/>
+  </joint>
+  <!-- Joint from thigh_link to shank_link -->
+  <joint name="KFE_HR" type="revolute">
+    <origin xyz="1.12688e-14 -0.21 2.77556e-17" rpy="-1.22464e-16 9.81315e-21 5.43341e-14"/>
+    <parent link="thigh_link"/>
+    <child link="shank_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from hip_link to thigh_link -->
+  <joint name="HFE_HR" type="revolute">
+    <origin xyz="-0.08 1.00901e-15 -0.096" rpy="4.11893e-16 1.5708 0"/>
+    <parent link="hip_link"/>
+    <child link="thigh_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from base_link_2 to hip_link -->
+  <joint name="HAA_HR" type="revolute">
+    <origin xyz="-0.1 1.00148e-31 0.0515" rpy="2.03378e-31 1.5708 0"/>
+    <parent link="base_link_2"/>
+    <child link="hip_link"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Link hip_link_mirrored -->
+  <link name="hip_link_mirrored">
+    <inertial>
+      <origin xyz="0.0266667 9.94695e-17 -0.0716667" rpy="0 0 0"/>
+      <mass value="0.603186"/>
+      <inertia ixx="0.00136943" ixy="8.21615e-18" ixz="0.000391401" iyy="0.00202959" iyz="2.17887e-18" izz="0.00141414"/>
+    </inertial>
+    <!-- Part actuator_4 -->
+    <collision>
+      <origin xyz="0 3.06162e-18 -0.023" rpy="-2.03378e-31 -6.28557e-35 -3.14159"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 3.06162e-18 -0.023" rpy="-2.03378e-31 -6.28557e-35 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_4_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_5 -->
+    <collision>
+      <origin xyz="0.08 -8.64943e-18 -0.096" rpy="3.24171e-16 1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.08 -8.64943e-18 -0.096" rpy="3.24171e-16 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_5_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_6 -->
+    <collision>
+      <origin xyz="1.26982e-15 3.07058e-16 -0.096" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="1.26982e-15 3.07058e-16 -0.096" rpy="-3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_6_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link thigh_link_2 -->
+  <link name="thigh_link_2">
+    <inertial>
+      <origin xyz="6.43472e-15 -0.105 2.02276e-18" rpy="0 0 0"/>
+      <mass value="1.29293"/>
+      <inertia ixx="0.0049239" ixy="2.69398e-16" ixz="4.69989e-25" iyy="0.000344781" iyz="-2.8039e-19" izz="0.0049239"/>
+    </inertial>
+    <!-- Part thigh_2 -->
+    <collision>
+      <origin xyz="6.43929e-15 -0.105 0" rpy="-1.5708 -9.54506e-23 5.89995e-14"/>
+      <geometry>
+        <box size="0.04 0.04 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="6.43929e-15 -0.105 0" rpy="-1.5708 -9.54506e-23 5.89995e-14"/>
+      <geometry>
+        <mesh filename="package://assets/thigh.stl"/>
+      </geometry>
+      <material name="thigh_2_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link shank_link_2 -->
+  <link name="shank_link_2">
+    <inertial>
+      <origin xyz="-1.10589e-16 -0.105 2.8873e-17" rpy="0 0 0"/>
+      <mass value="0.198828"/>
+      <inertia ixx="0.000745605" ixy="8.6359e-19" ixz="-7.11684e-26" iyy="2.98242e-05" iyz="-4.38289e-20" izz="0.000745605"/>
+    </inertial>
+    <!-- Part shank_2 -->
+    <collision>
+      <origin xyz="-1.11022e-16 -0.105 2.77556e-17" rpy="-1.5708 9.54506e-23 1.11369e-15"/>
+      <geometry>
+        <box size="0.03 0.03 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-1.11022e-16 -0.105 2.77556e-17" rpy="-1.5708 9.54506e-23 1.11369e-15"/>
+      <geometry>
+        <mesh filename="package://assets/shank.stl"/>
+      </geometry>
+      <material name="shank_2_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link foot_link_2 -->
+  <link name="foot_link_2">
+    <inertial>
+      <origin xyz="-2.82766e-18 -1.1435e-50 0" rpy="0 0 0"/>
+      <mass value="6.54498e-05"/>
+      <inertia ixx="1.63625e-08" ixy="-5.60581e-40" ixz="8.06732e-40" iyy="1.63625e-08" iyz="0" izz="1.63625e-08"/>
+    </inertial>
+    <!-- Part foot_2 -->
+    <collision>
+      <origin xyz="0 0 0" rpy="0 -0 4.04398e-33"/>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 -0 4.04398e-33"/>
+      <geometry>
+        <mesh filename="package://assets/foot.stl"/>
+      </geometry>
+      <material name="foot_2_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Joint from shank_link_2 to foot_link_2 -->
+  <joint name="Foot_HL" type="fixed" dont_collapse="true">
+    <origin xyz="-2.22045e-16 -0.21 0" rpy="1.5708 1.5708 0"/>
+    <parent link="shank_link_2"/>
+    <child link="foot_link_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10"/>
+  </joint>
+  <!-- Joint from thigh_link_2 to shank_link_2 -->
+  <joint name="KFE_HL" type="revolute">
+    <origin xyz="1.28508e-14 -0.21 0" rpy="-3.87154e-23 -9.54506e-23 5.89995e-14"/>
+    <parent link="thigh_link_2"/>
+    <child link="shank_link_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from hip_link_mirrored to thigh_link_2 -->
+  <joint name="HFE_HL" type="revolute">
+    <origin xyz="0.08 -5.58781e-18 -0.096" rpy="3.24171e-16 1.5708 0"/>
+    <parent link="hip_link_mirrored"/>
+    <child link="thigh_link_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from base_link_2 to hip_link_mirrored -->
+  <joint name="HAA_HL" type="revolute">
+    <origin xyz="-0.1 1.00148e-31 -0.0515" rpy="2.03378e-31 1.5708 0"/>
+    <parent link="base_link_2"/>
+    <child link="hip_link_mirrored"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from base_link to base_link_2 -->
+  <joint name="trunk" type="revolute">
+    <origin xyz="-0.05 0 3.25411e-16" rpy="1.5708 6.64746e-15 4.19648e-21"/>
+    <parent link="base_link"/>
+    <child link="base_link_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Link hip_link_2 -->
+  <link name="hip_link_2">
+    <inertial>
+      <origin xyz="0.0266667 1.29925e-16 0.0716667" rpy="0 0 0"/>
+      <mass value="0.603186"/>
+      <inertia ixx="0.00136943" ixy="-1.66645e-17" ixz="-0.000391401" iyy="0.00202959" iyz="-3.43047e-18" izz="0.00141414"/>
+    </inertial>
+    <!-- Part actuator_7 -->
+    <collision>
+      <origin xyz="0 3.06162e-18 0.023" rpy="3.14159 1.50306e-34 6.72626e-44"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 3.06162e-18 0.023" rpy="3.14159 1.50306e-34 6.72626e-44"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_7_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_8 -->
+    <collision>
+      <origin xyz="0.08 1.07569e-15 0.096" rpy="4.09395e-16 -1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.08 1.07569e-15 0.096" rpy="4.09395e-16 -1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_8_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_9 -->
+    <collision>
+      <origin xyz="-7.00828e-16 -6.85919e-16 0.096" rpy="-3.14159 -1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-7.00828e-16 -6.85919e-16 0.096" rpy="-3.14159 -1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_9_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link thigh_link_3 -->
+  <link name="thigh_link_3">
+    <inertial>
+      <origin xyz="8.74758e-15 0.105 -2.57328e-17" rpy="0 0 0"/>
+      <mass value="1.29293"/>
+      <inertia ixx="0.0049239" ixy="-4.11493e-16" ixz="3.74282e-23" iyy="0.000344781" iyz="-3.25441e-19" izz="0.0049239"/>
+    </inertial>
+    <!-- Part thigh_3 -->
+    <collision>
+      <origin xyz="8.74301e-15 0.105 -2.77556e-17" rpy="-1.5708 1.11022e-16 3.14159"/>
+      <geometry>
+        <box size="0.04 0.04 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="8.74301e-15 0.105 -2.77556e-17" rpy="-1.5708 1.11022e-16 3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/thigh.stl"/>
+      </geometry>
+      <material name="thigh_3_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link shank_link_3 -->
+  <link name="shank_link_3">
+    <inertial>
+      <origin xyz="4.33681e-19 -0.105 -2.66382e-17" rpy="0 0 0"/>
+      <mass value="0.198828"/>
+      <inertia ixx="0.000745605" ixy="1.85902e-20" ixz="-5.37961e-25" iyy="2.98242e-05" iyz="1.23572e-20" izz="0.000745605"/>
+    </inertial>
+    <!-- Part shank_3 -->
+    <collision>
+      <origin xyz="0 -0.105 -2.77556e-17" rpy="-1.5708 3.60558e-22 2.39581e-17"/>
+      <geometry>
+        <box size="0.03 0.03 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0.105 -2.77556e-17" rpy="-1.5708 3.60558e-22 2.39581e-17"/>
+      <geometry>
+        <mesh filename="package://assets/shank.stl"/>
+      </geometry>
+      <material name="shank_3_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link foot_link_3 -->
+  <link name="foot_link_3">
+    <inertial>
+      <origin xyz="2.49279e-17 -3.45917e-50 -2.83186e-49" rpy="0 0 0"/>
+      <mass value="6.54498e-05"/>
+      <inertia ixx="1.63625e-08" ixy="7.78989e-39" ixz="2.15549e-39" iyy="1.63625e-08" iyz="-1.43598e-37" izz="1.63625e-08"/>
+    </inertial>
+    <!-- Part foot_3 -->
+    <collision>
+      <origin xyz="2.77556e-17 0 0" rpy="-3.18341e-30 -1.00148e-31 1.22333e-32"/>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="2.77556e-17 0 0" rpy="-3.18341e-30 -1.00148e-31 1.22333e-32"/>
+      <geometry>
+        <mesh filename="package://assets/foot.stl"/>
+      </geometry>
+      <material name="foot_3_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Joint from shank_link_3 to foot_link_3 -->
+  <joint name="Foot_FR" type="fixed" dont_collapse="true">
+    <origin xyz="0 -0.21 -2.77556e-17" rpy="1.5708 -1.5708 0"/>
+    <parent link="shank_link_3"/>
+    <child link="foot_link_3"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10"/>
+  </joint>
+  <!-- Joint from thigh_link_3 to shank_link_3 -->
+  <joint name="KFE_FR" type="revolute">
+    <origin xyz="1.7486e-14 0.21 -2.77556e-17" rpy="-9.19064e-18 1.11022e-16 3.14159"/>
+    <parent link="thigh_link_3"/>
+    <child link="shank_link_3"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from hip_link_2 to thigh_link_3 -->
+  <joint name="HFE_FR" type="revolute">
+    <origin xyz="0.08 1.07875e-15 0.096" rpy="4.09395e-16 -1.5708 0"/>
+    <parent link="hip_link_2"/>
+    <child link="thigh_link_3"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from base_link to hip_link_2 -->
+  <joint name="HAA_FR" type="revolute">
+    <origin xyz="0.05 -0.0515 -3.39289e-16" rpy="-1.5708 3.56565e-28 -1.5708"/>
+    <parent link="base_link"/>
+    <child link="hip_link_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Link hip_link_mirrored_2 -->
+  <link name="hip_link_mirrored_2">
+    <inertial>
+      <origin xyz="-0.0266667 2.65239e-18 0.0716667" rpy="0 0 0"/>
+      <mass value="0.603186"/>
+      <inertia ixx="0.00136943" ixy="1.16637e-18" ixz="0.000391401" iyy="0.00202959" iyz="-1.05241e-18" izz="0.00141414"/>
+    </inertial>
+    <!-- Part actuator_10 -->
+    <collision>
+      <origin xyz="0 3.06162e-18 0.023" rpy="3.14159 -6.03431e-35 -1.3946e-35"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 3.06162e-18 0.023" rpy="3.14159 -6.03431e-35 -1.3946e-35"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_10_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_11 -->
+    <collision>
+      <origin xyz="-0.08 -7.67342e-18 0.096" rpy="3.24171e-16 -1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.08 -7.67342e-18 0.096" rpy="3.24171e-16 -1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_11_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+    <!-- Part actuator_12 -->
+    <collision>
+      <origin xyz="-1.64452e-15 1.56306e-17 0.096" rpy="-3.14159 -1.5708 0"/>
+      <geometry>
+        <cylinder length="0.04" radius="0.05"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-1.64452e-15 1.56306e-17 0.096" rpy="-3.14159 -1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/actuator.stl"/>
+      </geometry>
+      <material name="actuator_12_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link thigh_link_4 -->
+  <link name="thigh_link_4">
+    <inertial>
+      <origin xyz="-6.6156e-16 0.105 -1.64511e-16" rpy="0 0 0"/>
+      <mass value="1.29293"/>
+      <inertia ixx="0.0049239" ixy="-4.15174e-18" ixz="4.13515e-23" iyy="0.000344781" iyz="7.77942e-18" izz="0.0049239"/>
+    </inertial>
+    <!-- Part thigh_4 -->
+    <collision>
+      <origin xyz="-6.66134e-16 0.105 -1.66533e-16" rpy="-1.5708 -2.67997e-16 3.14159"/>
+      <geometry>
+        <box size="0.04 0.04 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-6.66134e-16 0.105 -1.66533e-16" rpy="-1.5708 -2.67997e-16 3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/thigh.stl"/>
+      </geometry>
+      <material name="thigh_4_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link shank_link_4 -->
+  <link name="shank_link_4">
+    <inertial>
+      <origin xyz="-2.73219e-17 -0.105 -2.66382e-17" rpy="0 0 0"/>
+      <mass value="0.198828"/>
+      <inertia ixx="0.000745605" ixy="2.5827e-19" ixz="-5.07645e-33" iyy="2.98242e-05" iyz="4.38289e-20" izz="0.000745605"/>
+    </inertial>
+    <!-- Part shank_4 -->
+    <collision>
+      <origin xyz="-2.77556e-17 -0.105 -2.77556e-17" rpy="-1.5708 3.4252e-30 3.33067e-16"/>
+      <geometry>
+        <box size="0.03 0.03 0.21"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-2.77556e-17 -0.105 -2.77556e-17" rpy="-1.5708 3.4252e-30 3.33067e-16"/>
+      <geometry>
+        <mesh filename="package://assets/shank.stl"/>
+      </geometry>
+      <material name="shank_4_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Link foot_link_4 -->
+  <link name="foot_link_4">
+    <inertial>
+      <origin xyz="2.49279e-17 -8.20691e-50 1.84059e-49" rpy="0 0 0"/>
+      <mass value="6.54498e-05"/>
+      <inertia ixx="1.63625e-08" ixy="7.66494e-40" ixz="-8.56446e-53" iyy="1.63625e-08" iyz="9.11455e-51" izz="1.63625e-08"/>
+    </inertial>
+    <!-- Part foot_4 -->
+    <collision>
+      <origin xyz="2.77556e-17 0 0" rpy="-2.62517e-31 6.50924e-32 2.90237e-32"/>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="2.77556e-17 0 0" rpy="-2.62517e-31 6.50924e-32 2.90237e-32"/>
+      <geometry>
+        <mesh filename="package://assets/foot.stl"/>
+      </geometry>
+      <material name="foot_4_material">
+        <color rgba="0.615686 0.811765 0.929412 1"/>
+      </material>
+    </visual>
+  </link>
+  <!-- Joint from shank_link_4 to foot_link_4 -->
+  <joint name="Foot_FL" type="fixed" dont_collapse="true">
+    <origin xyz="-5.55112e-17 -0.21 -2.77556e-17" rpy="-1.5708 1.5708 0"/>
+    <parent link="shank_link_4"/>
+    <child link="foot_link_4"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10"/>
+  </joint>
+  <!-- Joint from thigh_link_4 to shank_link_4 -->
+  <joint name="KFE_FL" type="revolute">
+    <origin xyz="-1.30451e-15 0.21 -3.33067e-16" rpy="1.63766e-15 -2.67997e-16 3.14159"/>
+    <parent link="thigh_link_4"/>
+    <child link="shank_link_4"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from hip_link_mirrored_2 to thigh_link_4 -->
+  <joint name="HFE_FL" type="revolute">
+    <origin xyz="-0.08 -4.6118e-18 0.096" rpy="3.24171e-16 -1.5708 0"/>
+    <parent link="hip_link_mirrored_2"/>
+    <child link="thigh_link_4"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+  <!-- Joint from base_link to hip_link_mirrored_2 -->
+  <joint name="HAA_FL" type="revolute">
+    <origin xyz="0.05 0.0515 -3.39289e-16" rpy="-1.5708 3.56565e-28 -1.5708"/>
+    <parent link="base_link"/>
+    <child link="hip_link_mirrored_2"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+  </joint>
+</robot>
