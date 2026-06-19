@@ -122,7 +122,7 @@ class CommandsCfg:
         debug_vis=True,
         velocity_deadzone=0.1,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.0, 3.0), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.5, 0.5)
+            lin_vel_x=(1.5, 3.0), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.5, 0.5)
         ),
     )
 
@@ -208,6 +208,14 @@ class EventCfg:
             "num_buckets": 100,
         },
     )
+    randomize_rigid_body_collider_offsets = EventTerm(
+        func=mdp.randomize_rigid_body_collider_offsets,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "contact_offset_distribution_params": (0.0, 0.03)
+        }
+    )
 
     # randomize_joint_position_offset = EventTerm(
     #     func=events.randomize_joint_position_offset,
@@ -218,27 +226,27 @@ class EventCfg:
     #     }
     # )
 
-    reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.01, 0.01),
-                "pitch": (0.0, 0.5),
-                "yaw": (0.0, 0.0),
-            },
-            "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.1, 0.1),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.5, 0.5),
-            },
-        },
-    )
+    # reset_base = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {
+    #             "x": (-0.5, 0.5),
+    #             "y": (-0.5, 0.5),
+    #             "z": (-0.01, 0.01),
+    #             "pitch": (0.5, 0.5),
+    #             "yaw": (0.0, 0.0),
+    #         },
+    #         "velocity_range": {
+    #             "x": (-0.5, 0.5),
+    #             "y": (-0.1, 0.1),
+    #             "z": (-0.1, 0.1),
+    #             "roll": (-0.5, 0.5),
+    #             "pitch": (-0.5, 0.5),
+    #             "yaw": (-0.5, 0.5),
+    #         },
+    #     },
+    # )
 
     # reset_robot_joints = EventTerm(
     #     func=mdp.reset_joints_by_offset,
@@ -261,14 +269,22 @@ class EventCfg:
     # )
 
 
-    reset_joints_from_dataset = EventTerm(
-        func=events.reset_joints_from_dataset,
+    reset_configuration_from_dataset = EventTerm(
+        func=events.reset_configuration_from_dataset,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
             "position_range": (-0.1, 0.1),
             "velocity_range": (-1.0, 1.0),
-            "sample_from_dataset": False,
+            "root_velocity_range": {
+                "x": (-0.5, 0.5),
+                "y": (-0.1, 0.1),
+                "z": (-0.1, 0.1),
+                "roll": (0.0, 0.0),
+                "pitch": (-0.1, 0.1),
+                "yaw": (0.0, 0.0),
+            },
+            "sample_from_dataset": True,
         }
     )
 
@@ -382,12 +398,12 @@ class ConstraintsCfg:
                 "limit": 1.0,
                 "asset_cfg": SceneEntityCfg("robot")}
     )
-    # foot_contact_force = ConstraintTerm(
-    #     func=constraints.foot_contact_force,
-    #     max_p=1.0,
-    #     params={"limit": 50.0, 
-    #             "asset_cfg": SceneEntityCfg("contact_forces", body_names=".*_FOOT")},
-    # )
+    foot_contact_force = ConstraintTerm(
+        func=constraints.foot_contact_force,
+        max_p=1.0,
+        params={"limit": 400.0, 
+                "asset_cfg": SceneEntityCfg("contact_forces", body_names="foot.*")},
+    )
     # front_hfe_position = ConstraintTerm(
     #     func=constraints.joint_position,
     #     max_p=1.0,
@@ -440,13 +456,20 @@ class ConstraintsCfg:
             ),
         },
     )    
-    # base_orientation = ConstraintTerm(
-    #     func=constraints.base_orientation, 
+    base_orientation_1 = ConstraintTerm(
+        func=constraints.base_orientation_1, 
+        max_p=0.25, 
+        params={
+            "limit": 0.5,
+            "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"])}
+    )
+    # base_orientation_2 = ConstraintTerm(
+    #     func=constraints.base_orientation_2, 
     #     max_p=0.25, 
     #     params={
-    #         "limit": 0.1,
-    #         "asset_cfg": SceneEntityCfg("robot")}
-    # )
+    #         "limit": 0.3,
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link_2"])}
+    # )    
     air_time = ConstraintTerm(
         func=constraints.air_time,
         max_p=0.25,
@@ -482,12 +505,13 @@ class ConstraintsCfg:
     #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_.*"]),
     #     },
     # )
-    # foot_height = ConstraintTerm(
-    #     func=constraints.foot_height,
+    # swing_foot_height = ConstraintTerm(
+    #     func=constraints.swing_foot_height,
     #     max_p=0.25,
     #     params={
-    #         # "limit": 0.2,
-    #         "asset_cfg": SceneEntityCfg("robot", body_names=["FL_foot.*", "FR_foot.*", "RL_foot.*", "RR_foot.*"]),
+    #         "limit": 0.07,
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=["foot.*"]),
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["foot.*"])
     #     },
     # )        
 
@@ -600,14 +624,22 @@ class CurriculumCfg:
             "init_max_p": 0.25,
         },
     )
-    # base_orientation = CurrTerm(
+    base_orientation_1 = CurrTerm(
+        func=curriculums.modify_constraint_p,
+        params={
+            "term_name": "base_orientation_1",
+            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+            "init_max_p": 0.25,
+        },
+    )
+    # base_orientation_2 = CurrTerm(
     #     func=curriculums.modify_constraint_p,
     #     params={
-    #         "term_name": "base_orientation",
+    #         "term_name": "base_orientation_2",
     #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
     #         "init_max_p": 0.25,
     #     },
-    # )    
+    # )
     air_time = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
@@ -640,10 +672,10 @@ class CurriculumCfg:
     #         "init_max_p": 0.1,
     #     }
     # )
-    # foot_height = CurrTerm(
+    # swing_foot_height = CurrTerm(
     #     func=curriculums.modify_constraint_p,
     #     params={
-    #         "term_name": "foot_height",
+    #         "term_name": "swing_foot_height",
     #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
     #         "init_max_p": 0.1,
     #     }
@@ -657,8 +689,8 @@ class CurriculumCfg:
         "address": "commands.base_velocity.ranges.lin_vel_x",
         "modify_fn": curriculums.override_command_range,
         "modify_params": {
-            "value": (0.0, 4.0),
-            "num_steps": 20 * MAX_CURRICULUM_ITERATIONS,
+            "value": (2.5, 3.5),
+            "num_steps": 40 * MAX_CURRICULUM_ITERATIONS,
         }
     }
     )
@@ -675,17 +707,17 @@ class CurriculumCfg:
     # }
     # )   
 
-    range_override_x_2 = CurrTerm(
-    func=mdp.modify_term_cfg,
-    params={
-        "address": "commands.base_velocity.ranges.lin_vel_x",
-        "modify_fn": curriculums.override_command_range,
-        "modify_params": {
-            "value": (0.0, 4.5),
-            "num_steps": 80 * MAX_CURRICULUM_ITERATIONS,
-        }
-    }
-    )
+    # range_override_x_2 = CurrTerm(
+    # func=mdp.modify_term_cfg,
+    # params={
+    #     "address": "commands.base_velocity.ranges.lin_vel_x",
+    #     "modify_fn": curriculums.override_command_range,
+    #     "modify_params": {
+    #         "value": (3.5, 4.0),
+    #         "num_steps": 80 * MAX_CURRICULUM_ITERATIONS,
+    #     }
+    # }
+    # )
 
     # range_override_ang = CurrTerm(
     # func=mdp.modify_term_cfg,
@@ -712,41 +744,41 @@ class CurriculumCfg:
     # }
     # )
 
-    reset_joints = CurrTerm(
-        func=mdp.modify_env_param,
-        params={
-            "address": "event_manager.cfg.reset_joints_from_dataset.params.sample_from_dataset",
-            "modify_fn": curriculums.override_joints_reset,
-            "modify_params": {
-                "value": True,
-                "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
-            }
-        }
-    )
+    # reset_config = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_configuration_from_dataset.params.sample_from_dataset",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": True,
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
 
     reset_base_vx = CurrTerm(
         func=mdp.modify_env_param,
         params={
-            "address": "event_manager.cfg.reset_base.params.velocity_range.x",
+            "address": "event_manager.cfg.reset_configuration_from_dataset.params.root_velocity_range.x",
             "modify_fn": curriculums.override_joints_reset,
             "modify_params": {
-                "value": (0.0, 3.0),
+                "value": (1.0, 3.0),
                 "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
             }
         }
     )
 
-    reset_base_wpitch = CurrTerm(
-        func=mdp.modify_env_param,
-        params={
-            "address": "event_manager.cfg.reset_base.params.velocity_range.pitch",
-            "modify_fn": curriculums.override_joints_reset,
-            "modify_params": {
-                "value": (-1.0, 1.0),
-                "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
-            }
-        }
-    )
+    # reset_base_wpitch = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_base.params.velocity_range.pitch",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (-1.0, 1.0),
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
 
     # reset_base_wyaw = CurrTerm(
     #     func=mdp.modify_env_param,
@@ -763,27 +795,27 @@ class CurriculumCfg:
     reset_base_vx_1 = CurrTerm(
         func=mdp.modify_env_param,
         params={
-            "address": "event_manager.cfg.reset_base.params.velocity_range.x",
+            "address": "event_manager.cfg.reset_configuration_from_dataset.params.root_velocity_range.x",
             "modify_fn": curriculums.override_joints_reset,
             "modify_params": {
-                "value": (0.0, 4.0),
-                "num_steps": 20 * MAX_CURRICULUM_ITERATIONS,
+                "value": (2.5, 3.5),
+                "num_steps": 40 * MAX_CURRICULUM_ITERATIONS,
             }
         }
     )
 
 
-    reset_base_vx_2 = CurrTerm(
-        func=mdp.modify_env_param,
-        params={
-            "address": "event_manager.cfg.reset_base.params.velocity_range.x",
-            "modify_fn": curriculums.override_joints_reset,
-            "modify_params": {
-                "value": (0.0, 4.5),
-                "num_steps": 80 * MAX_CURRICULUM_ITERATIONS,
-            }
-        }
-    )    
+    # reset_base_vx_2 = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_configuration_from_dataset.params.root_velocity_range.x",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (3.5, 4.0),
+    #             "num_steps": 80 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )    
 
     # reset_base_vx_3 = CurrTerm(
     #     func=mdp.modify_env_param,

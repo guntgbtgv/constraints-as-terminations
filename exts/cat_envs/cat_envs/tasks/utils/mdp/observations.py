@@ -164,13 +164,14 @@ def avg_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = Scen
     quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
     quat_01 = quat[:,0,:]
     quat_02 = quat[:,1,:]
-    quat_12 = quat_mul(quat_inv(quat_01), quat_02)
+    # quat_12 = quat_mul(quat_inv(quat_01), quat_02)
 
     rotation_angle = torch.tensor([-torch.pi/2, 0, 0], device=quat.device)
     rotation_angle = rotation_angle.unsqueeze(0).repeat(quat[:,1,:].size(0) , 1)  
     quat_22p = quat_from_euler_xyz(roll=rotation_angle[:,0], pitch=rotation_angle[:,1] , yaw=rotation_angle[:,2])
 
-    quat_02p =  quat_mul(quat_01, quat_mul(quat_12, quat_22p))
+    # quat_02p =  quat_mul(quat_01, quat_mul(quat_12, quat_22p))
+    quat_02p = quat_mul(quat_02, quat_22p)
 
     avg_quat = slerp_torch(quat_01, quat_02p, 0.5)
 

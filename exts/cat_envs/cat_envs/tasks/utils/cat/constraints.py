@@ -122,14 +122,36 @@ def contact(
     )
 
 
-def base_orientation(
+def base_orientation_1(
     env: ManagerBasedRLEnv,
     limit: float,
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    data = env.scene[asset_cfg.name].data
-    return torch.norm(data.projected_gravity_b[:, :2], dim=1) - limit
+    asset = env.scene[asset_cfg.name]
+    quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
+    # data = env.scene[asset_cfg.name].data
+    projected_gravity = quat_apply_inverse(quat, asset.data.GRAVITY_VEC_W)
 
+    # print("orientation: ", projected_gravity)
+    return torch.norm(projected_gravity[:, :2], dim=1) - limit
+
+def base_orientation_2(
+    env: ManagerBasedRLEnv,
+    limit: float,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    asset = env.scene[asset_cfg.name]
+    quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
+    quat_02 = quat[:,0,:]
+    rotation_angle = torch.tensor([-torch.pi/2, 0, 0], device=quat_02.device)
+    rotation_angle = rotation_angle.unsqueeze(0).repeat(quat[:,0,:].size(0) , 1)  
+    quat_22p = quat_from_euler_xyz(roll=rotation_angle[:,0], pitch=rotation_angle[:,1] , yaw=rotation_angle[:,2])
+
+    quat_0p = quat_mul(quat_02, quat_22p)
+    projected_gravity = quat_apply_inverse(quat_0p, asset.data.GRAVITY_VEC_W)
+
+    # print("orientation: ", projected_gravity)
+    return torch.norm(projected_gravity[:, :2], dim=1) - limit
 
 def air_time(
     env: ManagerBasedRLEnv,
@@ -234,17 +256,29 @@ def min_base_height(
     robot = env.scene[asset_cfg.name]
     return limit - robot.data.root_pos_w[:, 2]
 
-def foot_height(
+def swing_foot_height(
     env: ManagerBasedRLEnv,
-    # limit: float,
+    limit: float,
     asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """ maximum foot height    """
+    """ minimum foot height    """
     asset = env.scene[asset_cfg.name]
+    contact_sensor = env.scene[sensor_cfg.name]
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    no_contact = torch.abs(
+        torch.max(
+            torch.norm(
+                net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1
+            ),
+            dim=1,
+        )[0]
+        < 1.0
+    )    
     # print("body_link_pos_w: ", asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2])
     # print("root_pos_w: ", asset.data.root_pos_w[:, 2])
     # print("diff: ", asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2] - asset.data.root_pos_w[:, 2].unsqueeze(1))
-    return asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2] - asset.data.root_pos_w[:, 2].unsqueeze(1)
+    return no_contact * (limit - asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2])
 
 
 
@@ -367,13 +401,14 @@ def flat_orientation_articulate_trunk(env: ManagerBasedRLEnv, limit: float, asse
     quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
     quat_01 = quat[:,0,:]
     quat_02 = quat[:,1,:]
-    quat_12 = quat_mul(quat_inv(quat_01), quat_02)
+    # quat_12 = quat_mul(quat_inv(quat_01), quat_02)
 
     rotation_angle = torch.tensor([-torch.pi/2, 0, 0], device=quat.device)
     rotation_angle = rotation_angle.unsqueeze(0).repeat(quat[:,1,:].size(0) , 1)  
     quat_22p = quat_from_euler_xyz(roll=rotation_angle[:,0], pitch=rotation_angle[:,1] , yaw=rotation_angle[:,2])
 
-    quat_02p =  quat_mul(quat_01, quat_mul(quat_12, quat_22p))
+    # quat_02p =  quat_mul(quat_01, quat_mul(quat_12, quat_22p))
+    quat_02p = quat_mul(quat_02, quat_22p)
 
     # print("rotation trunk: ",  euler_xyz_from_quat(quat_mul(quat_inv(quat_01), quat_02p)))
 

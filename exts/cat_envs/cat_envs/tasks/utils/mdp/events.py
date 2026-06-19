@@ -18,11 +18,15 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 # df = pd.read_csv("inference_log_20260506_141531.csv")
-df = pd.read_csv("robot_joint_data.csv")
+df = pd.read_csv("robot_config_data.csv")
 # df = pd.read_csv("fixed_trunk_joint_data.csv")
 
 # pos_cols = [col for col in df.columns if "joint_pos" in col]
 # vel_cols = [col for col in df.columns if "joint_vel"in col]
+quat_cols = [
+    col for col in df.columns
+    if col.startswith("base")
+]
 pos_cols = [
     col for col in df.columns
     if col.startswith("q") and not col.startswith("qdot")
@@ -32,6 +36,7 @@ vel_cols = [
     if col.startswith("qdot")
 ]
 
+data_quat = torch.tensor(df[quat_cols].values, dtype=torch.float32)
 data_pos = torch.tensor(df[pos_cols].values, dtype=torch.float32)
 data_vel = torch.tensor(df[vel_cols].values, dtype=torch.float32)
 
@@ -139,17 +144,21 @@ def randomize_joint_position_offset(
     rand_pos = math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     env.action_manager.cfg.joint_pos.offset = joint_pos + rand_pos
 
-def reset_joints_from_dataset(
+def reset_configuration_from_dataset(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
     sample_from_dataset: bool,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
+    root_velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
 
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
+    # get default root state
+    root_states = asset.data.default_root_state[env_ids].clone()
+
 
 
     # cast env_ids to allow broadcasting
@@ -198,9 +207,19 @@ def reset_joints_from_dataset(
         idx = torch.randint(0, data_pos.shape[0], (1,))
 
 
+        positions = root_states[:, 0:3] + env.scene.env_origins[env_ids]
+        orientations_delta = data_quat[idx].to(asset.device)
+        orientations = math_utils.quat_mul(root_states[:, 3:7], orientations_delta.expand_as(root_states[:, 3:7]))
 
-        # print("joint_pos: ", joint_pos)
-        # print("sampled: ", data_pos[idx].squeeze(0))
+        range_list = [root_velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+        ranges = torch.tensor(range_list, device=asset.device)
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+        velocities = root_states[:, 7:13] + rand_samples
+
+
+        asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+        asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
         asset.write_joint_state_to_sim(data_pos[idx].squeeze(0).to(asset.device)+math_utils.sample_uniform(*position_range, data_pos[0].shape, asset.device), data_vel[idx].squeeze(0).to(asset.device), joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
