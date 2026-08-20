@@ -15,10 +15,32 @@ import torch
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_mul, quat_inv, quat_from_euler_xyz, quat_apply_inverse, yaw_quat
+from isaaclab.utils.math import quat_mul, quat_inv, quat_from_euler_xyz, quat_apply_inverse, yaw_quat, quat_error_magnitude
+import pandas as pd
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+# df = pd.read_csv("robot_config_data_edited.csv")
+df = pd.read_csv("robot_config_data_reversed.csv")
+
+quat_cols = [
+    col for col in df.columns
+    if col.startswith("base")
+]
+pos_cols = [
+    col for col in df.columns
+    if col.startswith("q") and not col.startswith("qdot")
+]
+# vel_cols = [
+#     col for col in df.columns
+#     if col.startswith("qdot")
+# ]
+
+data_quat = torch.tensor(df[quat_cols].values, dtype=torch.float32)
+data_pos = torch.tensor(df[pos_cols].values, dtype=torch.float32)
+# data_vel = torch.tensor(df[vel_cols].values, dtype=torch.float32)
+
 
 def track_lin_vel_xy_yaw_frame(
     env, limit: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
@@ -26,10 +48,9 @@ def track_lin_vel_xy_yaw_frame(
     """Reward tracking of linear velocity commands (xy axes) in the gravity aligned robot frame using exponential kernel."""
     # extract the used quantities (to enable type-hinting)
     asset = env.scene[asset_cfg.name]
-    vel_yaw = quat_apply_inverse(yaw_quat(asset.data.root_quat_w), asset.data.root_lin_vel_w[:, :3])
-    lin_vel_error = torch.sum(
-        torch.square(env.command_manager.get_command(command_name)[:, :2] - vel_yaw[:, :2]), dim=1
-    )
+    vel_yaw = quat_apply_inverse(yaw_quat(asset.data.root_quat_w), asset.data.root_lin_vel_w[:, :3],)
+    lin_vel_error = torch.norm(env.command_manager.get_command(command_name)[:, :2] - vel_yaw[:, :2], dim=1)
+    # ang_vel_error = torch.norm(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b[:, 2]) 
     return lin_vel_error - limit
 
 def joint_position(
@@ -57,12 +78,20 @@ def joint_position_when_moving_forward(
     )
     cstr *= (
         (
-            torch.abs(env.command_manager.get_command("base_velocity")[:, 1])
+            torch.abs(data.root_lin_vel_b[:, 1])
             < velocity_deadzone
         )
         .float()
         .unsqueeze(1)
     )
+    cstr *= (
+        (
+            torch.abs(data.root_ang_vel_b[:, 2])
+            < velocity_deadzone
+        )
+        .float()
+        .unsqueeze(1)
+    )               
     return cstr
 
 
@@ -122,18 +151,13 @@ def contact(
     )
 
 
-def base_orientation_1(
+def base_orientation(
     env: ManagerBasedRLEnv,
     limit: float,
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    asset = env.scene[asset_cfg.name]
-    quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
-    # data = env.scene[asset_cfg.name].data
-    projected_gravity = quat_apply_inverse(quat, asset.data.GRAVITY_VEC_W)
-
-    # print("orientation: ", projected_gravity)
-    return torch.norm(projected_gravity[:, :2], dim=1) - limit
+    data = env.scene[asset_cfg.name].data
+    return torch.norm(data.projected_gravity_b[:, :2], dim=1) - limit
 
 def base_orientation_2(
     env: ManagerBasedRLEnv,
@@ -151,7 +175,7 @@ def base_orientation_2(
     projected_gravity = quat_apply_inverse(quat_0p, asset.data.GRAVITY_VEC_W)
 
     # print("orientation: ", projected_gravity)
-    return torch.norm(projected_gravity[:, :2], dim=1) - limit
+    return projected_gravity[:, 0] - limit
 
 def air_time(
     env: ManagerBasedRLEnv,
@@ -205,12 +229,41 @@ def n_foot_contact(
 def joint_range(
     env: ManagerBasedRLEnv,
     limit: float,
+    velocity_deadzone: float,
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
     robot = env.scene[asset_cfg.name]
     data = env.scene[asset_cfg.name].data
-    return (
+    cstr = (
         torch.abs(data.joint_pos[:, asset_cfg.joint_ids] - data.default_joint_pos[:, asset_cfg.joint_ids])
+        - limit
+    )
+    cstr *= (
+        (
+            # torch.norm(env.command_manager.get_command("base_velocity")[:, :2], dim=1)
+            torch.norm(data.root_lin_vel_b[:, :1], dim=1)
+            < velocity_deadzone
+        )
+        .float()
+        .unsqueeze(1)
+    )    
+    return cstr
+
+def joint_range_contact(
+    env: ManagerBasedRLEnv,
+    limit: float,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
+) -> torch.Tensor:
+    robot = env.scene[asset_cfg.name]
+    data = env.scene[asset_cfg.name].data
+    sensor = env.scene[sensor_cfg.name]
+
+    foot_force_z = sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2]  # (N, num_bodies)
+    in_contact = torch.any(foot_force_z > 1.0, dim=1).float()
+
+    return in_contact * (
+        torch.sum((data.joint_pos[:, asset_cfg.joint_ids] - data.default_joint_pos[:, asset_cfg.joint_ids]) ** 2, dim=1) 
         - limit
     )
 
@@ -247,6 +300,17 @@ def foot_contact_force(
         - limit
     )
 
+def foot_touchdown_normal_force(
+    env: ManagerBasedRLEnv,
+    limit: float,
+    sensor_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+
+    first_contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    normal_contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2]
+    return first_contact * (normal_contact_forces - limit)
+
 
 def min_base_height(
     env: ManagerBasedRLEnv,
@@ -279,6 +343,252 @@ def swing_foot_height(
     # print("root_pos_w: ", asset.data.root_pos_w[:, 2])
     # print("diff: ", asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2] - asset.data.root_pos_w[:, 2].unsqueeze(1))
     return no_contact * (limit - asset.data.body_link_pos_w[:, asset_cfg.body_ids, 2])
+
+
+def keyframe_distance (
+    env,
+    limit: float,
+    # vel_threshold: float = 1e-3,
+    # acc_threshold: float = 5.0,
+    trunk_threshold: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
+    # front_contact_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
+    # hind_contact_cfg:  SceneEntityCfg = SceneEntityCfg("contact_forces"),
+) -> torch.Tensor:
+    """
+    Reward the robot for matching whichever posture (extended or flexed)
+    is closer to the current joint configuration, but only when feet are
+    not in contact with the ground.
+    """
+    asset = env.scene[asset_cfg.name]
+    sensor = env.scene[sensor_cfg.name]
+
+    # current joint configuration
+    q = asset.data.joint_pos[:,asset_cfg.joint_ids]  # shape: (num_envs, num_joints)
+    # print("asset_cfg.joint_ids: ", asset_cfg.joint_ids)
+    # print("asset.data.joint_names: " , asset.data.joint_names)
+    # print("trunk: ", asset.find_joints("trunk"))
+    # print("q: ", q)
+    # print("asset.data.joint_pos: ", asset.data.joint_pos)
+
+    ext_q = data_pos[3].unsqueeze(0).to(asset.device)
+    flex_q = data_pos[9].unsqueeze(0).to(asset.device)
+
+    # squared distance to each reference posture
+    d_ext = torch.abs(q - ext_q)
+    d_flex = torch.abs(q - flex_q)
+
+    trunk_id = asset.find_joints(["trunk"])
+
+    # choose the closer posture
+    mask = d_ext + trunk_threshold < d_flex
+    # print("mask.shape: ", mask.shape)
+    # print("d_ext: ", d_ext)
+    d = torch.where(mask, d_ext, d_flex)
+    d = torch.sum(d ** 2, dim=1)
+
+    # if torch.any(mask):
+    #     print("=========extenstion==========" , )
+    # if not torch.any(mask):
+    #     print("=========flextion==========" , )
+
+    # no-contact gate: use the selected contact bodies from the contact sensor
+    # if any selected foot/body has contact force above threshold, gate is 0
+    foot_force_z = sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2]  # (N, num_bodies)
+    in_contact = torch.any(foot_force_z > 1.0, dim=1)
+    airborne = (~in_contact).float()
+
+    # exponential shaping
+    cnstr = d - limit
+
+    return airborne * cnstr
+
+    # """
+    # front feet contact  -> compare current joint pose to flex_q
+    # hind feet contact   -> compare current joint pose to ext_q
+
+    # ext_q/flex_q should be full joint-reference vectors with the same joint
+    # ordering as robot.data.joint_pos[:, robot_cfg.joint_ids].
+    # """
+    # asset = env.scene[asset_cfg.name]
+    # front_sensor = env.scene.sensors[front_contact_cfg.name]
+    # hind_sensor = env.scene.sensors[hind_contact_cfg.name]
+
+    # # current joint configuration
+    # q = asset.data.joint_pos[:, asset_cfg.joint_ids]
+    # qdot = asset.data.joint_vel
+
+    # # joint-name -> index map
+    # joint_names = [str(x) for x in asset.data.joint_names]
+    # joint_index = {name: i for i, name in enumerate(joint_names)}
+
+    # # HFE joints to gate on
+    # hfe_names = ["HFE_FR", "HFE_FL", "HFE_HR", "HFE_HL"]
+    # hfe_ids = [joint_index[name] for name in hfe_names if name in joint_index]
+    # if len(hfe_ids) == 0:
+    #     raise RuntimeError("No HFE joints found in robot.data.joint_names")
+
+    # # gate: only active when all HFE joints are near zero velocity
+    # hfe_speed = qdot[:, hfe_ids].abs().min(dim=1).values
+    # hfe_stopped = hfe_speed <= vel_threshold
+
+
+    # # reference subsets in the same joint order
+    # q_ext = data_pos[3].unsqueeze(0).to(asset.device)
+    # q_flex = data_pos[9].unsqueeze(0).to(asset.device)
+
+    # # posture distances
+    # d_ext = torch.sum((q - q_ext) ** 2, dim=1)
+    # d_flex = torch.sum((q - q_flex) ** 2, dim=1)
+
+    # # contact gates
+    # front_contact =  torch.any(front_sensor.data.net_forces_w[:, front_contact_cfg.body_ids, 2] > 1.0, dim=1  )# (N, num_bodies)
+    # hind_contact =  torch.any(hind_sensor.data.net_forces_w[:, hind_contact_cfg.body_ids, 2] > 1.0, dim=1  )# (N, num_bodies)
+
+
+    # front_only = front_contact & (~hind_contact)
+    # hind_only = hind_contact & (~front_contact)
+
+    # # gated posture reward
+    # r_front = front_only.float() * (d_flex - limit)
+    # r_hind = hind_only.float() * (d_ext - limit)
+
+    # return hfe_stopped * (r_front + r_hind)
+
+    # """
+    # Reward the robot for matching whichever posture (extended or flexed)
+    # is closer to the current joint configuration
+    # """
+    # asset = env.scene[asset_cfg.name]
+
+    # # current joint configuration
+    # q = asset.data.joint_pos  # shape: (num_envs, num_joints)
+    # q_ext = data_pos[3].unsqueeze(0).to(asset.device)
+
+    # # squared distance to each reference posture
+    # # d = torch.sum((q[:,None,:] - data_pos.to(asset.device)[None, :, :]) ** 2, dim=-1)
+    # d = torch.sum((q - q_ext) ** 2, dim=-1)
+
+    # # choose the closer posture
+    # # d_closest, _ = torch.min(d, dim=1)
+    # # exponential shaping
+    # cnstr = d - limit
+
+    # return cnstr
+
+    # """ Reward the robot for matching whichever posture (extended or flexed)
+    # is closer to the current joint configuration, but only whenever v_HFE == 0
+    # """
+    # asset = env.scene[asset_cfg.name]
+
+    # # current joint configuration
+    # q = asset.data.joint_pos  # shape: (num_envs, num_joints)
+    # qdot = asset.data.joint_vel
+    
+
+    # # joint-name -> index map
+    # joint_names = [str(x) for x in asset.data.joint_names]
+    # joint_index = {name: i for i, name in enumerate(joint_names)}
+
+    # # HFE joints to gate on
+    # hfe_names = ["HFE_FR", "HFE_FL", "HFE_HR", "HFE_HL"]
+    # hfe_ids = [joint_index[name] for name in hfe_names if name in joint_index]
+    # if len(hfe_ids) == 0:
+    #     raise RuntimeError("No HFE joints found in robot.data.joint_names")
+
+    # # gate: only active when all HFE joints are near zero velocity
+    # hfe_speed = qdot[:, hfe_ids].abs().min(dim=1).values
+    # hfe_stopped = hfe_speed <= vel_threshold
+
+  
+    # ext_q = data_pos[3].unsqueeze(0).to(asset.device)
+    # flex_q = data_pos[9].unsqueeze(0).to(asset.device)
+
+    # # squared distance to each reference posture
+    # d_ext = torch.sum((q - ext_q) ** 2, dim=1)
+    # d_flex = torch.sum((q - flex_q) ** 2, dim=1)
+
+    # # choose the closer posture
+    # d = torch.minimum(d_ext, d_flex)
+
+    # # no-contact gate: use the selected contact bodies from the contact sensor
+    # # if any selected foot/body has contact force above threshold, gate is 0
+    # end_of_stroke = asset.data.joint_vel
+
+    # # exponential shaping
+    # cnstr = d - limit
+
+    # return hfe_stopped * cnstr
+
+    # """
+    # Reward matching extended/flexed posture based on HFE acceleration sign
+    # when HFE velocity is near zero.
+
+    # Rules:
+    #   - front HFE:  acc > 0 -> extended,  acc < 0 -> flexed
+    #   - hind HFE:   acc < 0 -> extended,  acc > 0 -> flexed
+    # """
+    # asset = env.scene[asset_cfg.name]
+
+    # # reference subsets in the same joint order
+    # q_ext = data_pos[3].unsqueeze(0).to(asset.device)
+    # quat_ext = data_quat[3].unsqueeze(0).to(asset.device)
+    # q_flex = data_pos[9].unsqueeze(0).to(asset.device)
+    # quat_flex = data_quat[9].unsqueeze(0).to(asset.device)
+
+    # q = asset.data.joint_pos
+    # qdot = asset.data.joint_vel
+    # quat = asset.data.root_quat_w
+
+    # joint_names = [str(x) for x in asset.data.joint_names]
+    # joint_index = {name: i for i, name in enumerate(joint_names)}
+
+    # # HFE joint groups
+    # front_hfe = ["HFE_FR", "HFE_FL"]
+    # hind_hfe  = ["HFE_HR", "HFE_HL"]
+
+    # front_ids = [joint_index[n] for n in front_hfe if n in joint_index]
+    # hind_ids  = [joint_index[n] for n in hind_hfe  if n in joint_index]
+
+    # if len(front_ids) == 0 or len(hind_ids) == 0:
+    #     raise RuntimeError("Could not find one or more HFE joints in asset.data.joint_names")
+
+    # # current posture distances
+    # d_ext = torch.sum((q - q_ext) ** 2, dim=1) + quat_error_magnitude(quat_ext.repeat(quat.size(0), 1) , quat)  
+    # d_flex = torch.sum((q - q_flex) ** 2, dim=1) + quat_error_magnitude(quat_flex.repeat(quat.size(0), 1), quat)
+
+    # # group averages
+    # # front_vel = qdot[:, front_ids].abs().min(dim=1).values
+    # hind_vel  = qdot[:, hind_ids].abs().min(dim=1).values
+
+    # # front_acc = asset.data.joint_acc[:, front_ids].mean(dim=1)
+    # hind_acc  = asset.data.joint_acc[:, hind_ids].mean(dim=1)
+
+    # # front_stopped = front_vel <= vel_threshold
+    # hind_stopped  = hind_vel <= vel_threshold
+
+    # # choose posture based on your sign rules
+    # # front_use_ext  = front_stopped & (front_acc > acc_threshold)
+    # # front_use_flex = front_stopped & (front_acc < -acc_threshold)
+
+    # hind_use_ext   = hind_stopped & (hind_acc < -acc_threshold)
+    # hind_use_flex  = hind_stopped & (hind_acc > acc_threshold)
+
+    # # score the chosen posture
+    # # r_front = torch.zeros_like(d_ext)
+    # r_hind = torch.zeros_like(d_ext)
+
+    # # r_front = torch.where(front_use_ext, d_ext - limit , r_front)
+    # # r_front = torch.where(front_use_flex, d_flex - limit , r_front)
+
+    # r_hind = torch.where(hind_use_ext,  d_ext - limit , r_hind)
+    # r_hind = torch.where(hind_use_flex, d_flex - limit , r_hind)
+
+    # return r_hind #r_front +
+
+
+
 
 
 

@@ -10,7 +10,8 @@ import pandas as pd
 from typing import TYPE_CHECKING
 
 
-import isaaclab.utils.math as math_utils
+import isaaclab.utils.math as math_utils  
+
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg, ManagerTermBase
 
@@ -18,8 +19,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 # df = pd.read_csv("inference_log_20260506_141531.csv")
-df = pd.read_csv("robot_config_data.csv")
-# df = pd.read_csv("fixed_trunk_joint_data.csv")
+# df = pd.read_csv("robot_config_data_edited.csv")
+# df = pd.read_csv("robot_config_data_reversed.csv")
+df = pd.read_csv("fixed_trunk_joint_data_edited.csv")
 
 # pos_cols = [col for col in df.columns if "joint_pos" in col]
 # vel_cols = [col for col in df.columns if "joint_vel"in col]
@@ -78,6 +80,351 @@ def randomize_body_coms(
     new_coms = asset.root_physx_view.get_coms().clone()
     new_coms[:, asset_cfg.body_ids, 0:3] = coms
     asset.root_physx_view.set_coms(new_coms, env_ids)
+
+
+def push_front_hind_along_heading_when_hind_contacts(
+    env,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg,
+    front_contact_cfg: SceneEntityCfg,
+    hind_contact_cfg:  SceneEntityCfg,
+    touchdown_margin: float,
+    force_mag: float = 50.0,
+    contact_threshold: float = 1.0,
+):
+    asset = env.scene[asset_cfg.name]
+    front_sensor = env.scene.sensors[front_contact_cfg.name]
+    hind_sensor = env.scene.sensors[hind_contact_cfg.name]
+
+    front_body_ids = front_contact_cfg.body_ids
+    hind_body_ids = hind_contact_cfg.body_ids
+    # print("front_body_ids: ", front_body_ids)
+
+    # Detect hind-foot contact from world-frame normal contact forces.
+    hind_fz = hind_sensor.data.net_forces_w[:, hind_body_ids, 2]  # (N, num_hind_feet)
+    hind_contact = torch.any(hind_fz > contact_threshold, dim=1)      # (N,)
+    touchdown = torch.any(hind_sensor.compute_first_contact(touchdown_margin)[env_ids][:, hind_body_ids], dim=1)
+
+    front_fz = front_sensor.data.net_forces_w[env_ids][:, front_body_ids, 2]
+    front_air = torch.all(front_fz < contact_threshold, dim=1)
+
+
+    # if not torch.any(touchdown):
+    #     return
+
+    active_env_ids = env_ids[touchdown]
+    active_env_ids_air = env_ids[front_air]
+
+    # Base heading in world frame: rotate +x by yaw only.
+    # quat_apply_yaw() is the Isaac Lab helper for yaw-only rotation. :contentReference[oaicite:1]{index=1}
+    root_quat_w = asset.data.root_quat_w[active_env_ids_air]  # (N, 4) in wxyz
+    forward_w = math_utils.quat_apply_yaw(root_quat_w, torch.tensor([1.0, 0.0, 0.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1))
+    forward_w[:, 2] = 0.0
+    forward_w = forward_w / torch.linalg.norm(forward_w, dim=1, keepdim=True).clamp_min(1e-6)
+
+    # Build horizontal forces.
+    hind_forces = torch.zeros((active_env_ids.numel(), len(hind_body_ids), 3), device=root_quat_w.device)
+    front_forces = torch.zeros((active_env_ids_air.numel(), len(front_body_ids), 3), device=root_quat_w.device)
+
+    # hind_forces[:, :, :2] = -force_mag * forward_w[:, None, :2]
+    front_forces[:, :, :2] =  force_mag * forward_w[:, None, :2]
+
+    hind_torques = torch.zeros_like(hind_forces)
+    front_torques = torch.zeros_like(front_forces)
+
+    # Store the external wrenches on the asset.
+    # Isaac Lab’s asset API documents set_external_force_and_torque() and notes that
+    # the wrench is buffered and later applied when write_data_to_sim() is called. :contentReference[oaicite:2]{index=2}
+    # asset.permanent_wrench_composer.set_forces_and_torques(
+    #     forces=hind_forces,
+    #     torques=hind_torques,
+    #     body_ids=hind_body_ids,
+    #     env_ids=active_env_ids,
+    #     is_global=True,
+    # )
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=front_forces,
+        torques=front_torques,
+        body_ids=[front_body_ids[0]],
+        env_ids=active_env_ids_air,
+        is_global=True,
+    )
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=front_forces,
+        torques=front_torques,
+        body_ids=[front_body_ids[1]],
+        env_ids=active_env_ids_air,
+        is_global=True,
+    )
+
+def anchoring_force(
+    env,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg,
+    front_contact_cfg: SceneEntityCfg,
+    hind_contact_cfg:  SceneEntityCfg,
+    touchdown_margin: float,
+    force_mag: float = 50.0,
+    contact_threshold: float = 1.0,
+):
+    asset = env.scene[asset_cfg.name]
+    front_sensor = env.scene.sensors[front_contact_cfg.name]
+    hind_sensor = env.scene.sensors[hind_contact_cfg.name]
+
+    front_body_ids = front_contact_cfg.body_ids
+    hind_body_ids = hind_contact_cfg.body_ids
+    # print("front_body_ids: ", front_body_ids)
+
+    # Detect hind-foot contact from world-frame normal contact forces.
+    hind_fz = hind_sensor.data.net_forces_w[:, hind_body_ids, 2]  # (N, num_hind_feet)
+    hind_contact = torch.any(hind_fz > contact_threshold, dim=1)      # (N,)
+    touchdown = torch.any(front_sensor.compute_first_contact(touchdown_margin)[env_ids][:, hind_body_ids], dim=1)
+
+    front_fz = front_sensor.data.net_forces_w[env_ids][:, front_body_ids, 2]
+    front_air = torch.all(front_fz < contact_threshold, dim=1)
+
+
+    # if not torch.any(touchdown):
+    #     return
+
+    active_env_ids = env_ids[touchdown]
+    active_env_ids_air = env_ids[front_air]
+
+    # Base heading in world frame: rotate +x by yaw only.
+    # quat_apply_yaw() is the Isaac Lab helper for yaw-only rotation. :contentReference[oaicite:1]{index=1}
+    root_quat_w = asset.data.root_quat_w[active_env_ids_air]  # (N, 4) in wxyz
+    downward_w =  torch.tensor([0.0, 0.0, -1.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1)
+    # downward_w[:, 2] = 0.0
+    downward_w = downward_w / torch.linalg.norm(downward_w, dim=1, keepdim=True).clamp_min(1e-6)
+
+    # Build horizontal forces.
+    hind_forces = torch.zeros((active_env_ids_air.numel(), len(hind_body_ids), 3), device=root_quat_w.device)
+    # front_forces = torch.zeros((active_env_ids_air.numel(), len(front_body_ids), 3), device=root_quat_w.device)
+
+    hind_forces[:, :, 2] = - force_mag
+    # front_forces[:, :, :2] =  force_mag * forward_w[:, None, :2]
+    # print("hind_forces: ", hind_forces)
+    hind_torques = torch.zeros_like(hind_forces)
+    # front_torques = torch.zeros_like(front_forces)
+
+    # Store the external wrenches on the asset.
+    # Isaac Lab’s asset API documents set_external_force_and_torque() and notes that
+    # the wrench is buffered and later applied when write_data_to_sim() is called. :contentReference[oaicite:2]{index=2}
+    # asset.permanent_wrench_composer.set_forces_and_torques(
+    #     forces=hind_forces,
+    #     torques=hind_torques,
+    #     body_ids=hind_body_ids,
+    #     env_ids=active_env_ids,
+    #     is_global=True,
+    # )
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=hind_forces,
+        torques=hind_torques,
+        body_ids=hind_body_ids,
+        env_ids=active_env_ids_air,
+        is_global=True,
+    )
+
+def lifting_force_hind(
+    env,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg,
+    front_contact_cfg: SceneEntityCfg,
+    hind_contact_cfg:  SceneEntityCfg,
+    touchdown_margin: float,
+    force_mag: float = 50.0,
+    contact_threshold: float = 1.0,
+):
+    asset = env.scene[asset_cfg.name]
+    front_sensor = env.scene.sensors[front_contact_cfg.name]
+    hind_sensor = env.scene.sensors[hind_contact_cfg.name]
+
+    front_body_ids = front_contact_cfg.body_ids
+    hind_body_ids = hind_contact_cfg.body_ids
+
+    # Detect hind-foot contact from world-frame normal contact forces.
+    hind_fz = hind_sensor.data.net_forces_w[:, hind_body_ids, 2]  # (N, num_hind_feet)
+    hind_contact = torch.all(hind_fz > contact_threshold, dim=1)      # (N,)
+
+    front_fz = front_sensor.data.net_forces_w[:, front_body_ids, 2]
+    front_contact = torch.all(front_fz > contact_threshold, dim=1)
+
+
+    # if not torch.any(touchdown):
+    #     return
+
+    active_env_ids = env_ids[front_contact]
+
+    # Base heading in world frame: rotate +x by yaw only.
+    # quat_apply_yaw() is the Isaac Lab helper for yaw-only rotation. :contentReference[oaicite:1]{index=1}
+    # root_quat_w = asset.data.root_quat_w[active_env_ids_hind]  # (N, 4) in wxyz
+    # downward_w =  torch.tensor([0.0, 0.0, -1.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1)
+    # downward_w[:, 2] = 0.0
+    # downward_w = downward_w / torch.linalg.norm(downward_w, dim=1, keepdim=True).clamp_min(1e-6)
+
+    # Build horizontal forces.
+    hind_forces = torch.zeros((active_env_ids.numel(), len(hind_body_ids), 3), device=asset.device)
+    # front_forces = torch.zeros((active_env_ids_hind.numel(), len(front_body_ids), 3), device=asset.device)
+
+    hind_forces[:, :, 2] = force_mag
+    hind_torques = torch.zeros_like(hind_forces)
+
+    # Store the external wrenches on the asset.
+    # Isaac Lab’s asset API documents set_external_force_and_torque() and notes that
+    # the wrench is buffered and later applied when write_data_to_sim() is called. :contentReference[oaicite:2]{index=2}
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=hind_forces,
+        torques=hind_torques,
+        body_ids=hind_body_ids,
+        env_ids=active_env_ids,
+        is_global=True,
+    )
+
+
+def lifting_force_front(
+    env,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg,
+    front_contact_cfg: SceneEntityCfg,
+    hind_contact_cfg:  SceneEntityCfg,
+    touchdown_margin: float,
+    force_mag: float = 50.0,
+    contact_threshold: float = 1.0,
+):
+    asset = env.scene[asset_cfg.name]
+    front_sensor = env.scene.sensors[front_contact_cfg.name]
+    hind_sensor = env.scene.sensors[hind_contact_cfg.name]
+
+    front_body_ids = front_contact_cfg.body_ids
+    hind_body_ids = hind_contact_cfg.body_ids
+
+    # Detect hind-foot contact from world-frame normal contact forces.
+    hind_fz = hind_sensor.data.net_forces_w[:, hind_body_ids, 2]  # (N, num_hind_feet)
+    hind_contact = torch.all(hind_fz > contact_threshold, dim=1)      # (N,)
+
+    front_fz = front_sensor.data.net_forces_w[:, front_body_ids, 2]
+    front_contact = torch.all(front_fz > contact_threshold, dim=1)
+
+
+    # if not torch.any(touchdown):
+    #     return
+
+    active_env_ids = env_ids[hind_contact]
+
+    # Base heading in world frame: rotate +x by yaw only.
+    # quat_apply_yaw() is the Isaac Lab helper for yaw-only rotation. :contentReference[oaicite:1]{index=1}
+    # root_quat_w = asset.data.root_quat_w[active_env_ids]  # (N, 4) in wxyz
+    # downward_w =  torch.tensor([0.0, 0.0, -1.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1)
+    # downward_w[:, 2] = 0.0
+    # downward_w = downward_w / torch.linalg.norm(downward_w, dim=1, keepdim=True).clamp_min(1e-6)
+
+    # Build horizontal forces.
+    # hind_forces = torch.zeros((active_env_ids_front.numel(), len(hind_body_ids), 3), device=asset.device)
+    front_forces = torch.zeros((active_env_ids.numel(), len(front_body_ids), 3), device=asset.device)
+
+    front_forces[:, :, 2] = force_mag
+    front_torques = torch.zeros_like(front_forces)
+
+    # Store the external wrenches on the asset.
+    # Isaac Lab’s asset API documents set_external_force_and_torque() and notes that
+    # the wrench is buffered and later applied when write_data_to_sim() is called. :contentReference[oaicite:2]{index=2}
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=front_forces,
+        torques=front_torques,
+        body_ids=front_body_ids,
+        env_ids=active_env_ids,
+        is_global=True,
+    )
+
+
+
+
+def set_front_hfe_velocity_when_hind_contacts(
+    env,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg,
+    front_contact_cfg: SceneEntityCfg,
+    hind_contact_cfg: SceneEntityCfg,
+    front_hfe_cfg: SceneEntityCfg,
+    hind_hfe_cfg: SceneEntityCfg,
+    target_velocity: float = 2.0,
+    contact_threshold: float = 1.0,
+    touchdown_margin: float = 0.005
+):
+    asset = env.scene[asset_cfg.name]
+    hind_sensor = env.scene[hind_contact_cfg.name]
+    front_sensor = env.scene[front_contact_cfg.name]
+    # detect hind-foot contact
+    hind_body_ids = hind_contact_cfg.body_ids
+    front_body_ids = front_contact_cfg.body_ids
+    hind_fz = hind_sensor.data.net_forces_w[env_ids][:, hind_body_ids, 2]
+    front_fz = front_sensor.data.net_forces_w[env_ids][:, front_body_ids, 2]
+
+    hind_contact = torch.all(hind_fz > contact_threshold, dim=1)
+    front_air = torch.all(front_fz < contact_threshold, dim=1)
+    # touchdown = torch.all(hind_sensor.compute_first_contact(touchdown_margin)[env_ids][:, hind_body_ids], dim=1)
+    touchdown = torch.all(front_sensor.compute_first_contact(touchdown_margin)[env_ids][:, front_body_ids], dim=1)
+    # air = torch.all(front_sensor.compute_first_air(touchdown_margin)[env_ids][:, front_body_ids], dim=1)
+
+    # print("hind_sensor.compute_first_contact(touchdown_margin)[:, hind_body_ids]: ", hind_sensor.compute_first_contact(touchdown_margin)[:, hind_body_ids])
+    # print(touchdown)
+    # if not torch.any(air):
+    #     return
+
+    # print("touchdown!!!!!")
+    active_env_ids_air = env_ids[front_air]
+    # print("active_env_ids: ", active_env_ids)
+    # front HFE joints to drive
+    front_hfe_joint_ids = front_hfe_cfg.joint_ids
+    hind_hfe_joint_ids = hind_hfe_cfg.joint_ids
+
+    # set both front HFE joints to the same target velocity
+    vel = torch.full(
+        (active_env_ids_air.numel(), len(front_hfe_joint_ids)),
+        fill_value=target_velocity,
+        device=asset.device,
+        dtype=torch.float32,
+    )
+
+    asset.write_joint_velocity_to_sim(
+        velocity=vel,
+        joint_ids=front_hfe_joint_ids,
+        env_ids=active_env_ids_air,
+    )
+
+    active_env_ids_touchdown = env_ids[touchdown]
+    # front HFE joints to drive
+    front_hfe_joint_ids = front_hfe_cfg.joint_ids
+    hind_hfe_joint_ids = hind_hfe_cfg.joint_ids
+
+    # set both front HFE joints to the same target velocity
+    vel = torch.full(
+        (active_env_ids_touchdown.numel(), len(front_hfe_joint_ids)),
+        fill_value=-target_velocity,
+        device=asset.device,
+        dtype=torch.float32,
+    )
+
+    asset.write_joint_velocity_to_sim(
+        velocity=vel,
+        joint_ids=front_hfe_joint_ids,
+        env_ids=active_env_ids_touchdown,
+    )
+
+
+    # vel = torch.full(
+    #     (active_env_ids.numel(), len(hind_hfe_joint_ids)),
+    #     fill_value=-target_velocity,
+    #     device=asset.device,
+    #     dtype=torch.float32,
+    # )
+
+    # asset.write_joint_velocity_to_sim(
+    #     velocity=vel,
+    #     joint_ids=hind_hfe_joint_ids,
+    #     env_ids=active_env_ids,
+    # )
+
 
 
 def push_by_setting_velocity_with_random_envs(
@@ -150,6 +497,7 @@ def reset_configuration_from_dataset(
     sample_from_dataset: bool,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
+    pose_range: dict[str, tuple[float, float]],
     root_velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
@@ -206,9 +554,14 @@ def reset_configuration_from_dataset(
 
         idx = torch.randint(0, data_pos.shape[0], (1,))
 
+        # poses
+        range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+        ranges = torch.tensor(range_list, device=asset.device)
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-        positions = root_states[:, 0:3] + env.scene.env_origins[env_ids]
-        orientations_delta = data_quat[idx].to(asset.device)
+
+        positions = root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+        orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5]) #data_quat[idx].to(asset.device)
         orientations = math_utils.quat_mul(root_states[:, 3:7], orientations_delta.expand_as(root_states[:, 3:7]))
 
         range_list = [root_velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]

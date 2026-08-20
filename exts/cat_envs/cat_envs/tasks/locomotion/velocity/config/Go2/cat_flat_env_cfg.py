@@ -19,7 +19,7 @@ from cat_envs.tasks.utils.cat.manager_constraint_cfg import (
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg, ImuCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -91,6 +91,9 @@ class MySceneCfg(InteractiveSceneCfg):
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True
     )
+    imu = ImuCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base", offset=ImuCfg.OffsetCfg(pos=(-0.02557, 0, 0.04232))
+    )
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -119,7 +122,7 @@ class CommandsCfg:
         debug_vis=True,
         velocity_deadzone=0.1,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0)
+            lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-1.0, 1.0)
         ),
     )
 
@@ -131,7 +134,7 @@ class ActionsCfg:
     joint_pos = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=JOINT_NAMES, 
-        scale=0.25,
+        scale=0.3,
         use_default_offset=True,
         preserve_order=True,
     )
@@ -149,12 +152,19 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(
             func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)
         )
+        base_acceleration = ObsTerm(
+            func=mdp.imu_lin_acc, 
+            params={
+                "asset_cfg": SceneEntityCfg("imu")
+            },
+            noise=Unoise(n_min=-0.2, n_max=0.2)
+        )
         velocity_commands = ObsTerm(
             func=mdp.generated_commands,
             params={"command_name": "base_velocity"},
         )
         projected_gravity = ObsTerm(
-            func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05)
+            func=mdp.projected_gravity, noise=Unoise(n_min=-0.2, n_max=0.2)
         )
         joint_pos = ObsTerm(
             func=mdp.joint_pos,
@@ -189,12 +199,48 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.3, 1.25),
-            "dynamic_friction_range": (0.3, 1.25),
+            "static_friction_range": (0.3, 3.0),
+            "dynamic_friction_range": (0.3, 3.0),
             "restitution_range": (0.0, 0.1),
             "num_buckets": 100,
         },
     )
+    randomize_rigid_body_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+        },
+    )    
+    randomize_rigid_body_collider_offsets = EventTerm(
+        func=mdp.randomize_rigid_body_collider_offsets,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "contact_offset_distribution_params": (0.0, 0.03)
+        }
+    )
+    # randomize_joint_parameters = EventTerm(
+    #     func=mdp.randomize_joint_parameters,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "friction_distribution_params": (0.05, 0.05),
+    #         "armature_distribution_params": (0.0001*40.0689, 0.0007*40.0689),
+    #         "operation": "abs",
+    #         "distribution": "uniform",            
+    #     }
+    # )
+
+    # randomize_joint_position_offset = EventTerm(
+    #     func=events.randomize_joint_position_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "position_range": (-0.5, 0.5),
+    #     }
+    # )
 
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -203,12 +249,15 @@ class EventCfg:
             "pose_range": {
                 "x": (-0.5, 0.5),
                 "y": (-0.5, 0.5),
-                "yaw": (-3.14, 3.14),
+                # "z": (-0.0, 0.0),
+                "roll": (-0.5, 0.5),
+                "pitch": (0.5, 0.5),
+                "yaw": (-0.5, 0.5),
             },
             "velocity_range": {
                 "x": (-0.5, 0.5),
                 "y": (-0.5, 0.5),
-                "z": (-0.0, 0.0),
+                "z": (-0.5, 0.5),
                 "roll": (-0.5, 0.5),
                 "pitch": (-0.5, 0.5),
                 "yaw": (-0.5, 0.5),
@@ -217,27 +266,107 @@ class EventCfg:
     )
 
     reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": (0.5, 1.5),
-            "velocity_range": (-0.0, 0.0),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+            "position_range": (-0.1, 0.1),
+            "velocity_range": (-0.5, 0.5),
         },
     )
 
+    # reset_trunk_joint = EventTerm(
+    #     func=mdp.reset_joints_by_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["trunk"], preserve_order=True),
+    #         "position_range": (-0.0, 0.0),
+    #         "velocity_range": (0.0, 0.0),
+    #     },
+    # )
+
+
+    # reset_configuration_from_dataset = EventTerm(
+    #     func=events.reset_configuration_from_dataset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "position_range": (-0.1, 0.1),
+    #         "velocity_range": (-1.0, 1.0),
+    #         "pose_range": {
+    #             # "roll": (-0.5, 0.5),
+    #             # "pitch": (0.5, 0.5),
+    #             "yaw": (-0.5, 0.5),
+    #         },
+    #         "root_velocity_range": {
+    #             "x": (-0.5, 2.0),
+    #             "y": (-0.5, 0.5),
+    #             "z": (-0.5, 0.5),
+    #             "roll": (-0.5, 0.5),
+    #             "pitch": (-0.5, 0.5),
+    #             "yaw": (-0.5, 0.5),
+    #         },
+    #         "sample_from_dataset": True,
+    #     }
+    # )
+
+
     # interval
+
+    anchoring_force = EventTerm(
+        func=events.anchoring_force,
+        mode="interval",
+        interval_range_s=(0.005, 0.005),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*"]),  
+            "front_contact_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*"]),
+            "hind_contact_cfg": SceneEntityCfg("contact_forces", body_names=[ "RL_foot.*", "RR_foot.*"]),
+            "force_mag": 20.0,
+            "contact_threshold": 1.0,
+            "touchdown_margin": 0.005
+        },
+    )
+
+    lifting_force_hind = EventTerm(
+        func=events.lifting_force_hind,
+        mode="interval",
+        interval_range_s=(0.005, 0.005),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*"]),  
+            "front_contact_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*"]),
+            "hind_contact_cfg": SceneEntityCfg("contact_forces", body_names=[ "RL_foot.*", "RR_foot.*"]),
+            "force_mag": 0.0,
+            "contact_threshold": 1.0,
+            "touchdown_margin": 0.005
+        },
+    )    
+    lifting_force_front = EventTerm(
+        func=events.lifting_force_front,
+        mode="interval",
+        interval_range_s=(0.005, 0.005),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*"]),  
+            "front_contact_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*"]),
+            "hind_contact_cfg": SceneEntityCfg("contact_forces", body_names=[ "RL_foot.*", "RR_foot.*"]),
+            "force_mag": 0.0,
+            "contact_threshold": 1.0,
+            "touchdown_margin": 0.005
+        },
+    )   
+
+
 
     # set pushing every step, as only some of the environments are chosen
     # as in the isaacgym cat version
-    push_robot = EventTerm(
-        # Standard push_by_setting_velocity also works, but interestingly results
-        # in a different gait
-        func=events.push_by_setting_velocity_with_random_envs,
-        mode="interval",
-        is_global_time=True,
-        interval_range_s=(10.0, 15.0),
-        params={"velocity_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1)}},
-    )
+    # push_robot = EventTerm(
+    #     # Standard push_by_setting_velocity also works, but interestingly results
+    #     # in a different gait
+    #     func=events.push_by_setting_velocity_with_random_envs,
+    #     mode="interval",
+    #     is_global_time=True,
+    #     interval_range_s=(1.0, 3.0),
+    #     params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "z": (-0.5, 0.5), "roll": (-0.5, 0.5), "pitch": (-0.5, 0.5), "yaw": (-0.78, 0.78),}},
+    # )
 
 
 @configclass
@@ -245,21 +374,110 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # -- task
-    # track_lin_vel_xy_exp = RewTerm(
-    #     func=mdp.track_lin_vel_xy_exp,
-    #     weight=1.0,
-    #     params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
-    # )
-    track_lin_vel_xy_yaw_frame_exp = RewTerm(
-        func=rewards.track_lin_vel_xy_yaw_frame_exp,
-        weight=1,
+    track_lin_vel_xy_exp = RewTerm(
+        func=mdp.track_lin_vel_xy_exp,
+        weight=1.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
-    )        
+    )
+    # track_lin_vel_xy_yaw_frame_exp = RewTerm(
+    #     func=rewards.track_lin_vel_xy_yaw_frame_exp,
+    #     weight=1,
+    #     params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+    # )        
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_exp,
         weight=0.5,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
+    # flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.02)
+    joint_torque_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-0.5e-5)
+    # joint_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-10.0)
+    joint_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1.0e-7)
+    touchdown_forces = RewTerm(
+        func=rewards.foot_touchdown_normal_force, 
+        weight=-0.01, 
+        params={"threshold": 50.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*", "RL_foot.*", "RR_foot.*"])}
+    )
+    # contact_forces = RewTerm(
+    #     func=mdp.contact_forces, 
+    #     weight=-0.001, 
+    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*", "RL_foot.*", "RR_foot.*"])}
+    # )    
+
+    # track_ang_vel_z_world_exp = RewTerm(
+    #     func=rewards.track_ang_vel_z_world_exp,
+    #     weight=0.5,
+    #     params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+    # )
+    # root_lin_vel_z = RewTerm(
+    #     func=rewards.root_lin_vel_z,
+    #     weight=0.2,
+    #     params={"asset_cfg": SceneEntityCfg("robot", body_names=["base"])}
+    # )
+    # joint_position_penalty = RewTerm(
+    #     func = rewards.joint_position_penalty,
+    #     weight = -0.1,
+    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES), "stand_still_scale": 0.1, "velocity_threshold": 0.1}
+
+    # )
+    variable_posture = RewTerm(
+        func=rewards.variable_posture,
+        weight = 0.5,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES), "std_standing": 0.1, "std_walking": 0.4, "std_running": 0.5, "walking_threshold": 0.3, "running_threshold": 1.5}
+    )
+
+
+    # is_terminated_term = RewTerm(
+    #     func=mdp.is_terminated,
+    #     weight=-100.0,
+    # )
+    # leg_extension = RewTerm(
+    #     func=rewards.leg_extension,
+    #     weight=-0.1,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names="foot.*")
+    #     }     
+    # )
+    # leg_retraction = RewTerm(
+    #     func=rewards.leg_retraction,
+    #     weight=-0.1,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names="foot.*")
+    #     }     
+    # )
+    # leg_work = RewTerm(
+    #     func=rewards.leg_work,
+    #     weight=0.001,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES, preserve_order=True),
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names="foot.*")
+    #     }
+    # )
+    # power_loss = RewTerm(
+    #     func=rewards.power_loss,
+    #     weight=0.05,
+    #     params={
+    #         "K": 0.05640625,
+    #         "Coulomb": 0.05,
+    #         "viscous": 0.0,
+    #     }
+    # )
+    # stance_time = RewTerm(
+    #     func=rewards.feet_stance_time,
+    #     weight=2,
+    #     params={
+    #         "threshold": 0.1, 
+    #         "command_name": "base_velocity",
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["foot.*"])},
+    # )
+    # energy_new = RewTerm(
+    #     func=rewards.energy_new,
+    #     weight=-0.01,
+    #     params={"std_lin": 1000.0, "std_ang": 0.0,}
+    # )
 
 
 @configclass
@@ -268,41 +486,48 @@ class ConstraintsCfg:
     joint_torque = ConstraintTerm(
         func=constraints.joint_torque,
         max_p=0.25,
-        params={"limit": 51.0, 
+        params={"limit": 35.0, 
                 "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
     )
     joint_velocity = ConstraintTerm(
         func=constraints.joint_velocity,
         max_p=0.25,
-        params={"limit": 31.0, 
+        params={"limit": 51.0, 
                 "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
     )
     # joint_acceleration = ConstraintTerm(
     #     func=constraints.joint_acceleration,
     #     max_p=0.25,
-    #     params={"limit": 1500.0, 
+    #     params={"limit": 2000.0, 
     #             "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
     # )
-    action_rate = ConstraintTerm(
-        func=constraints.action_rate,
-        max_p=0.25,
-        params={"limit": 200.0, 
-                "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
-    )
+    # action_rate = ConstraintTerm(
+    #     func=constraints.action_rate,
+    #     max_p=0.25,
+    #     params={"limit": 10.0, 
+    #             "asset_cfg": SceneEntityCfg("robot")}, #joint_names=JOINT_NAMES
+    # )
 
     # Safety Hard constraints
     # Knee and base
     contact = ConstraintTerm(
         func=constraints.contact,
-        max_p=1.0,
+        max_p=0.25,
         params={
-                "asset_cfg": SceneEntityCfg("contact_forces", body_names=["base", "Head_upper", "Head_lower", "FL_calf.*", "FR_calf.*", "RL_calf.*", "RR_calf.*",])},
+                "asset_cfg": SceneEntityCfg("contact_forces", body_names=["base", ".*thigh", ".*calf"])},
     )
-    # foot_contact_force = ConstraintTerm(
-    #     func=constraints.foot_contact_force,
+    track_lin_vel_xy_yaw_frame = ConstraintTerm(
+        func=constraints.track_lin_vel_xy_yaw_frame,
+        max_p=0.25,
+        params={"command_name": "base_velocity", 
+                "limit": 2.0,
+                "asset_cfg": SceneEntityCfg("robot")}
+    )
+    # foot_touchdown_normal_force = ConstraintTerm(
+    #     func=constraints.foot_touchdown_normal_force,
     #     max_p=1.0,
-    #     params={"limit": 50.0, 
-    #             "asset_cfg": SceneEntityCfg("contact_forces", body_names=".*_FOOT")},
+    #     params={"limit": 300.0, 
+    #             "sensor_cfg": SceneEntityCfg("contact_forces", body_names="foot.*")},
     # )
     # front_hfe_position = ConstraintTerm(
     #     func=constraints.joint_position,
@@ -318,54 +543,62 @@ class ConstraintsCfg:
     # )
 
     # Style constraints
-    hip_position = ConstraintTerm(
-        func=constraints.joint_position_when_moving_forward,
+    HAA_position = ConstraintTerm(
+        func=constraints.joint_range,
         max_p=0.25,
         params={
-            "limit": 0.2, 
-            "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["RL_hip.*", "RR_hip.*", "FL_hip.*", "FR_hip.*",])},
+            "limit": 0.5, 
+            "velocity_deadzone": 3.5,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_joint"])},
     )
-    thigh_position = ConstraintTerm(
-        func=constraints.joint_position_when_moving_forward,
+    HFE_position = ConstraintTerm(
+        func=constraints.joint_range,
         max_p=0.25,
         params={
-            "limit": 2.0, 
-            "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["RL_thigh.*", "RR_thigh.*", "FL_thigh.*", "FR_thigh.*",])},
+            "limit": 1.5, 
+            "velocity_deadzone": 3.5,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_thigh_joint"])},
     )
-    calf_position = ConstraintTerm(
-        func=constraints.joint_position_when_moving_forward,
+    KFE_position = ConstraintTerm(
+        func=constraints.joint_range,
         max_p=0.25,
         params={
             "limit": 0.9, 
-            "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["RL_calf.*", "RR_calf.*", "FL_calf.*", "FR_calf.*",])},
+            "velocity_deadzone": 3.5,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_calf_joint"])},
     )        
-    base_orientation = ConstraintTerm(
-        func=constraints.base_orientation, 
-        max_p=0.25, 
-        params={
-            "limit": 0.1,
-            "asset_cfg": SceneEntityCfg("robot")}
-    )
-    air_time = ConstraintTerm(
-        func=constraints.air_time,
-        max_p=0.25,
-        params={
-            "limit": 0.1, 
-            "velocity_deadzone": 0.1,
-            "asset_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*", "RL_foot.*", "RR_foot.*"])},
-    )
-    no_move = ConstraintTerm(
-        func=constraints.no_move,
-        max_p=0.25,
-        params={
-            "velocity_deadzone": 0.1,
-            "joint_vel_limit": 4.0,
-            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)
-        },
-    )
+    # base_orientation = ConstraintTerm(
+    #     func=constraints.base_orientation, 
+    #     max_p=0.25, 
+    #     params={
+    #         "limit": 0.5,
+    #         "asset_cfg": SceneEntityCfg("robot")}
+    # )
+    # air_time = ConstraintTerm(
+    #     func=constraints.air_time,
+    #     max_p=0.25,
+    #     params={
+    #         "limit": 0.1, 
+    #         "velocity_deadzone": 0.1,
+    #         "asset_cfg": SceneEntityCfg("contact_forces", body_names=["FL_foot.*", "FR_foot.*", "RL_foot.*", "RR_foot.*"])},
+    # )
+    # no_move = ConstraintTerm(
+    #     func=constraints.no_move,
+    #     max_p=0.25,
+    #     params={
+    #         "velocity_deadzone": 0.1,
+    #         "joint_vel_limit": 4.0,
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)
+    #     },
+    # )
+    # posture_deviation = ConstraintTerm(
+    #     func=constraints.joint_range,
+    #     max_p=0.25,
+    #     params={
+    #         "limit": 1.0,
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)
+    #     },
+    # )
     # two_foot_contact = ConstraintTerm(
     #     func=constraints.n_foot_contact,
     #     max_p=0.25,
@@ -376,14 +609,14 @@ class ConstraintsCfg:
     #     },
     # )
     # Other constraints:
-    base_height = ConstraintTerm(
-        func=constraints.min_base_height,
-        max_p=0.25,
-        params={
-            "limit": 0.25,
-            "asset_cfg": SceneEntityCfg("robot", body_names=["base"]),
-        },
-    )
+    # base_height = ConstraintTerm(
+    #     func=constraints.min_base_height,
+    #     max_p=0.25,
+    #     params={
+    #         "limit": 0.25,
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=["base"]),
+    #     },
+    # )
     # foot_height = ConstraintTerm(
     #     func=constraints.foot_height,
     #     max_p=0.25,
@@ -398,19 +631,19 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=["base"]
-            ),
-            "threshold": 1.0,
-        },
-    )
+    # base_contact = DoneTerm(
+    #     func=mdp.illegal_contact,
+    #     params={
+    #         "sensor_cfg": SceneEntityCfg(
+    #             "contact_forces", body_names=["base", "Head_upper", "Head_lower",]
+    #         ),
+    #         "threshold": 1.0,
+    #     },
+    # )
     upside_down = DoneTerm(
         func=terminations.upside_down,
         params={
-            "limit": 0.5,
+            "limit": 0.8,
         },
     )
 
@@ -421,6 +654,14 @@ MAX_CURRICULUM_ITERATIONS = 1000
 @configclass
 class CurriculumCfg:
     # Safety Soft constraints
+    track_lin_vel_xy_yaw_frame = CurrTerm(
+        func=curriculums.modify_constraint_p,
+        params={
+            "term_name": "track_lin_vel_xy_yaw_frame",
+            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+            "init_max_p": 0.25,
+        },   
+    )
     joint_torque = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
@@ -445,56 +686,88 @@ class CurriculumCfg:
     #         "init_max_p": 0.25,
     #     },
     # )
-    action_rate = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "action_rate",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.25,
-        },
-    )
+    # action_rate = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "action_rate",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )
 
     # Style constraints
-    hip_position = CurrTerm(
+    contact = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "hip_position",
+            "term_name": "contact",
+            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+            "init_max_p": 0.25,
+        },
+    )    
+    HAA_position = CurrTerm(
+        func=curriculums.modify_constraint_p,
+        params={
+            "term_name": "HAA_position",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
     )
-    thigh_position = CurrTerm(
+    HFE_position = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "thigh_position",
+            "term_name": "HFE_position",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
     )
-    calf_position = CurrTerm(
+    KFE_position = CurrTerm(
         func=curriculums.modify_constraint_p,
         params={
-            "term_name": "calf_position",
+            "term_name": "KFE_position",
             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
             "init_max_p": 0.25,
         },
     )        
-    base_orientation = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "base_orientation",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.25,
-        },
-    )
-    air_time = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "air_time",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.25,
-        },
-    )
+    # base_orientation = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "base_orientation",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )
+    # keyframe_distance = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "keyframe_distance",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )    
+    # base_orientation_1 = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "base_orientation_1",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )
+    # base_orientation_2 = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "base_orientation_2",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )
+    # air_time = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "air_time",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.25,
+    #     },
+    # )
     # two_foot_contact = CurrTerm(
     #     func=curriculums.modify_constraint_p,
     #     params={
@@ -503,26 +776,34 @@ class CurriculumCfg:
     #         "init_max_p": 0.25,
     #     },
     # )
-    no_move = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "no_move",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.1,
-        }
-    )
-    base_height = CurrTerm(
-        func=curriculums.modify_constraint_p,
-        params={
-            "term_name": "base_height",
-            "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
-            "init_max_p": 0.1,
-        }
-    )
-    # foot_height = CurrTerm(
+    # no_move = CurrTerm(
     #     func=curriculums.modify_constraint_p,
     #     params={
-    #         "term_name": "foot_height",
+    #         "term_name": "no_move",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.1,
+    #     }
+    # )
+    # posture_deviation = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "posture_deviation",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.1,
+    #     }
+    # )    
+    # base_height = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "base_height",
+    #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         "init_max_p": 0.1,
+    #     }
+    # )
+    # swing_foot_height = CurrTerm(
+    #     func=curriculums.modify_constraint_p,
+    #     params={
+    #         "term_name": "swing_foot_height",
     #         "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
     #         "init_max_p": 0.1,
     #     }
@@ -536,23 +817,23 @@ class CurriculumCfg:
         "address": "commands.base_velocity.ranges.lin_vel_x",
         "modify_fn": curriculums.override_command_range,
         "modify_params": {
-            "value": (-0.0, 2.0),
-            "num_steps": 10 * MAX_CURRICULUM_ITERATIONS,
+            "value": (-1.0, 2.5),
+            "num_steps": 12 * MAX_CURRICULUM_ITERATIONS,
         }
     }
     )
 
-    # range_override_y = CurrTerm(
-    # func=mdp.modify_term_cfg,
-    # params={
-    #     "address": "commands.base_velocity.ranges.lin_vel_y",
-    #     "modify_fn": curriculums.override_command_range,
-    #     "modify_params": {
-    #         "value": (-0.2, 0.2),
-    #         "num_steps": 12 * MAX_CURRICULUM_ITERATIONS,
-    #     }
-    # }
-    # )   
+    range_override_y = CurrTerm(
+    func=mdp.modify_term_cfg,
+    params={
+        "address": "commands.base_velocity.ranges.lin_vel_y",
+        "modify_fn": curriculums.override_command_range,
+        "modify_params": {
+            "value": (-1.0, 1.0),
+            "num_steps": 12 * MAX_CURRICULUM_ITERATIONS,
+        }
+    }
+    )   
 
     range_override_x_2 = CurrTerm(
     func=mdp.modify_term_cfg,
@@ -560,8 +841,8 @@ class CurriculumCfg:
         "address": "commands.base_velocity.ranges.lin_vel_x",
         "modify_fn": curriculums.override_command_range,
         "modify_params": {
-            "value": (-0.0, 3.0),
-            "num_steps": 20 * MAX_CURRICULUM_ITERATIONS,
+            "value": (-1.0, 3.0),
+            "num_steps": 18 * MAX_CURRICULUM_ITERATIONS,
         }
     }
     )
@@ -579,17 +860,239 @@ class CurriculumCfg:
     # )       
 
 
-    range_override_x_3 = CurrTerm(
-    func=mdp.modify_term_cfg,
-    params={
-        "address": "commands.base_velocity.ranges.lin_vel_x",
-        "modify_fn": curriculums.override_command_range,
-        "modify_params": {
-            "value": (-0.0, 4.0),
-            "num_steps": 30 * MAX_CURRICULUM_ITERATIONS,
+    # range_override_x_3 = CurrTerm(
+    # func=mdp.modify_term_cfg,
+    # params={
+    #     "address": "commands.base_velocity.ranges.lin_vel_x",
+    #     "modify_fn": curriculums.override_command_range,
+    #     "modify_params": {
+    #         "value": (4.5, 5.0),
+    #         "num_steps": 120 * MAX_CURRICULUM_ITERATIONS,
+    #     }
+    # }
+    # )
+
+    # reset_config = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_configuration_from_dataset.params.sample_from_dataset",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": True,
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
+
+    # reset_base_vx = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_configuration_from_dataset.params.root_velocity_range.x",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (-0.0, 1.0),
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
+
+    # reset_base_wpitch = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_base.params.velocity_range.pitch",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (-1.0, 1.0),
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
+
+    # reset_base_wyaw = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_base.params.velocity_range.yaw",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (0.0, 0.0),
+    #             "num_steps": 0 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
+
+    # reset_base_vx_1 = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_configuration_from_dataset.params.root_velocity_range.x",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (-0.0, 2.0),
+    #             "num_steps": 10 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )
+
+
+    # reset_base_vx_2 = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_configuration_from_dataset.params.root_velocity_range.x",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (0.0, 3.0),
+    #             "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )    
+
+    # reset_base_vx_3 = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.reset_base.params.velocity_range.x",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value": (4.5, 5.0),
+    #             "num_steps": 120 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )        
+
+
+    anchoring_force = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.anchoring_force.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value": 10,
+                "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+            }
         }
-    }
     )
+    anchoring_force_1 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.anchoring_force.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":5,
+                "num_steps": 30 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+    anchoring_force_2 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.anchoring_force.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":0,
+                "num_steps": 36 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )   
+
+    lifting_force_hind = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_hind.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value": 20,
+                "num_steps": 3 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+    lifting_force_hind_1 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_hind.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":10,
+                "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+    lifting_force_hind_2 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_hind.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":5,
+                "num_steps": 30 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )   
+    lifting_force_hind_3 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_hind.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":0,
+                "num_steps": 36 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )       
+    lifting_force_front = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_front.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value": 20,
+                "num_steps": 3 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+    lifting_force_front_1 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_front.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":10,
+                "num_steps": 24 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )
+    lifting_force_front_2 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_front.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":5,
+                "num_steps": 30 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )   
+    lifting_force_front_3 = CurrTerm(
+        func=mdp.modify_env_param,
+        params={
+            "address": "event_manager.cfg.lifting_force_front.params.force_mag",
+            "modify_fn": curriculums.override_joints_reset,
+            "modify_params": {
+                "value":0,
+                "num_steps": 36 * MAX_CURRICULUM_ITERATIONS,
+            }
+        }
+    )   
+
+
+    # anchoring_force_3 = CurrTerm(
+    #     func=mdp.modify_env_param,
+    #     params={
+    #         "address": "event_manager.cfg.anchoring_force.params.force_mag",
+    #         "modify_fn": curriculums.override_joints_reset,
+    #         "modify_params": {
+    #             "value":0,
+    #             "num_steps": 15 * MAX_CURRICULUM_ITERATIONS,
+    #         }
+    #     }
+    # )         
 
 
 
@@ -619,18 +1122,18 @@ class Go2FlatEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.episode_length_s = 100.0
+        self.episode_length_s = 20.0
 
         # simulation settings
         self.sim.solver_type = 0
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
-        self.sim.max_position_iteration_count = 4
-        self.sim.max_velocity_iteration_count = 1
-        self.sim.bounce_threshold_velocity = 0.2
-        self.sim.gpu_max_rigid_contact_count = 33554432
-        self.sim.disable_contact_processing = True
-        self.sim.physics_material = self.scene.terrain.physics_material
+        # self.sim.max_position_iteration_count = 4
+        # self.sim.max_velocity_iteration_count = 1
+        # self.sim.bounce_threshold_velocity = 0.2
+        # self.sim.gpu_max_rigid_contact_count = 33554432
+        # self.sim.disable_contact_processing = True
+        # self.sim.physics_material = self.scene.terrain.physics_material
 
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
@@ -651,6 +1154,14 @@ class Go2FlatEnvCfg_PLAY(Go2FlatEnvCfg):
         self.observations.policy.enable_corruption = False
 
         # set velocity command
-        self.commands.base_velocity.ranges.lin_vel_x = (-0.3, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.7, 0.7)
-        self.commands.base_velocity.ranges.ang_vel_z = (-0.78, 0.78)
+        self.commands.base_velocity.ranges.lin_vel_x = (1.5, 2.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.0, 0.0)
+
+        # self.events.anchoring_force.params["force_mag"] = 0.0
+        self.events.lifting_force_front.params["force_mag"] = 20.0
+        self.events.lifting_force_hind.params["force_mag"] = 20.0
+
+        # self.episode_length_s = 1.0
+
+

@@ -13,6 +13,7 @@ a more user-friendly way.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import csv
 
 from isaaclab.app import AppLauncher
 
@@ -155,6 +156,26 @@ def main():
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
+    robot = env.unwrapped.scene["robot"]
+
+    csv_path = os.path.join(log_dir, "trajectory_log.csv")
+    csv_file = open(csv_path, "w", newline="")
+    csv_writer = csv.writer(csv_file)
+
+    joint_names = [str(x) for x in robot.data.joint_names]
+
+    header = [
+        "step",
+        "root_pos_x", "root_pos_y", "root_pos_z",
+        "root_quat_w", "root_quat_x", "root_quat_y", "root_quat_z",
+    ]
+    header += [f"joint_pos_{name}" for name in joint_names]
+    header += [f"joint_vel_{name}" for name in joint_names]
+
+    csv_writer.writerow(header)
+    print(f"[INFO] Logging trajectory to: {csv_path}")
+
+
     # wrap around environment for skrl
     env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="auto")`
 
@@ -171,21 +192,32 @@ def main():
     runner.agent.set_running_mode("eval")
 
 
-    print("[INFO] Creating and exporting model to .onnx and .pt")
-    # model = runner.agent.models["policy"]
-    # state = torch.load(resume_path)
-    # model.load_state_dict(state)
-    # model.eval()
-
-    obs_dim = env.observation_space.shape[0]
-    dummy_input = torch.randn(1, obs_dim, device=env_cfg.sim.device, requires_grad=False)
-    print(runner)
-
-    save_dir = os.path.dirname(resume_path)
+    # print("runner._models: ", runner._models)
+    # print("runner.agent: ", runner.agent)
+    pt_path = os.path.join(log_dir, "model.pt")
     
-    pt_path = os.path.join(save_dir, "policy.pt")
-    torch.jit.trace(runner, dummy_input).save(pt_path)
-    print(f"[INFO] Exported .pt model to {pt_path}")
+    policy = runner._models["agent"]["policy"]
+    policy.eval()
+    # print("policy.state_dict(): ", policy.state_dict())
+    torch.save(policy.state_dict(), pt_path)
+
+
+
+    # print("[INFO] Creating and exporting model to .onnx and .pt")
+    # # model = runner.agent.models["policy"]
+    # # state = torch.load(resume_path)
+    # # model.load_state_dict(state)
+    # # model.eval()
+
+    # obs_dim = env.observation_space.shape[0]
+    # dummy_input = torch.randn(1, obs_dim, device=env_cfg.sim.device, requires_grad=False)
+    # print(runner)
+
+    # save_dir = os.path.dirname(resume_path)
+    
+    # pt_path = os.path.join(save_dir, "policy.pt")
+    # torch.jit.trace(runner, dummy_input).save(pt_path)
+    # print(f"[INFO] Exported .pt model to {pt_path}")
 
 
 
@@ -209,6 +241,25 @@ def main():
                 actions = outputs[-1].get("mean_actions", outputs[0])
             # env stepping
             obs, _, _, _, _ = env.step(actions)
+
+
+            root_pos = robot.data.root_pos_w[0].detach().cpu().numpy()
+            root_quat = robot.data.root_quat_w[0].detach().cpu().numpy()  # w, x, y, z
+            joint_pos = robot.data.joint_pos[0].detach().cpu().numpy()
+            joint_vel = robot.data.joint_vel[0].detach().cpu().numpy()
+
+            row = [
+                timestep,
+                float(root_pos[0]), float(root_pos[1]), float(root_pos[2]),
+                float(root_quat[0]), float(root_quat[1]), float(root_quat[2]), float(root_quat[3]),
+            ]
+            row += joint_pos.tolist()
+            row += joint_vel.tolist()
+
+            csv_writer.writerow(row)
+
+
+
         if args_cli.video:
             timestep += 1
             # exit the play loop after recording one video
@@ -219,6 +270,9 @@ def main():
         sleep_time = dt - (time.time() - start_time)
         if args_cli.real_time and sleep_time > 0:
             time.sleep(sleep_time)
+
+    csv_file.close()
+    print(f"[INFO] Saved trajectory CSV to: {csv_path}")
 
     # close the simulator
     env.close()

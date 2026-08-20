@@ -48,6 +48,123 @@ def feet_stance_time(
     reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
     return reward
 
+def foot_touchdown_normal_force(
+    env: ManagerBasedRLEnv,
+    threshold: float,
+    sensor_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+
+    first_contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2]
+    # violation = torch.max(torch.norm(contact_forces[:, sensor_cfg.body_ids, :], dim=-1), dim=1)[0] - threshold
+
+    return torch.sum(first_contact * contact_forces,dim=1)
+
+def leg_extension(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+
+    """
+    Reward the extension of each leg only when the corresponding foot is in contact.
+
+    Returns:
+        Tensor of shape (num_envs,)
+    """
+    asset = env.scene[asset_cfg.name]
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+
+    # --- contact mask from foot contact forces ---
+    # net_forces_w is normal contact force in world frame
+    # shape: (num_envs, num_bodies, 3)
+    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+
+
+    # --- map joint names to indices in the articulation ---
+    joint_names = [str(x) for x in asset.data.joint_names]
+    joint_index = {name: i for i, name in enumerate(joint_names)}
+
+    leg_joint_groups = {
+        "FR": ["HFE_FR", "KFE_FR"],
+        "FL": ["HFE_FL", "KFE_FL"],
+        "HR": ["HFE_HR", "KFE_HR"],
+        "HL": ["HFE_HL", "KFE_HL"],
+    }
+
+    foot_order = ["FR", "FL", "HR", "HL"]
+    
+    extended_pos = torch.zeros_like(asset.data.joint_pos)
+    extended_pos[:,joint_index["HFE_FR"]] = 1.5
+    extended_pos[:,joint_index["HFE_FL"]] = 1.5
+    extended_pos[:,joint_index["HFE_HR"]] = 1.5
+    extended_pos[:,joint_index["HFE_HL"]] = 1.5
+
+
+    leg_rewards = []
+    for foot_name in foot_order:
+        ids = [joint_index[jn] for jn in leg_joint_groups[foot_name]]
+
+        leg_reward = torch.linalg.norm((asset.data.joint_pos[:,ids] - extended_pos[:,ids]), dim=1)
+
+
+        # gate by corresponding foot contact
+        foot_id = foot_order.index(foot_name)
+        leg_reward = leg_reward * contacts[:, foot_id].float()
+
+        leg_rewards.append(leg_reward)
+
+    return torch.stack(leg_rewards, dim=1).sum(dim=1)
+
+def leg_retraction(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+
+    """
+    Reward the retraction of each leg only when the corresponding foot is NOT in contact.
+
+    Returns:
+        Tensor of shape (num_envs,)
+    """
+    asset = env.scene[asset_cfg.name]
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+
+    # --- contact mask from foot contact forces ---
+    # net_forces_w is normal contact force in world frame
+    # shape: (num_envs, num_bodies, 3)
+    swing = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] < 1.0
+
+
+    # --- map joint names to indices in the articulation ---
+    joint_names = [str(x) for x in asset.data.joint_names]
+    joint_index = {name: i for i, name in enumerate(joint_names)}
+
+    leg_joint_groups = {
+        "FR": ["HFE_FR", "KFE_FR"],
+        "FL": ["HFE_FL", "KFE_FL"],
+        "HR": ["HFE_HR", "KFE_HR"],
+        "HL": ["HFE_HL", "KFE_HL"],
+    }
+
+    foot_order = ["FR", "FL", "HR", "HL"]
+    
+    retracted_pos = torch.zeros_like(asset.data.joint_pos)
+    retracted_pos[:,joint_index["HFE_FR"]] = -1.5
+    retracted_pos[:,joint_index["HFE_FL"]] = -1.5
+    retracted_pos[:,joint_index["HFE_HR"]] = -1.5
+    retracted_pos[:,joint_index["HFE_HL"]] = -1.5
+
+
+    leg_rewards = []
+    for foot_name in foot_order:
+        ids = [joint_index[jn] for jn in leg_joint_groups[foot_name]]
+
+        leg_reward = torch.linalg.norm((asset.data.joint_pos[:,ids] - retracted_pos[:,ids]), dim=1)
+
+
+        # gate by corresponding foot contact
+        foot_id = foot_order.index(foot_name)
+        leg_reward = leg_reward * swing[:, foot_id].float()
+
+        leg_rewards.append(leg_reward)
+
+    return torch.stack(leg_rewards, dim=1).sum(dim=1)
+
 def feet_air_time_positive_biped(
     env: ManagerBasedRLEnv, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg
 ) -> torch.Tensor:
@@ -106,6 +223,36 @@ def foot_power(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = Scen
     return rew_feet_pow
 
 
+def root_lin_vel_z(
+    env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    # extract the used quantities (to enable type-hinting)
+    asset = env.scene[asset_cfg.name]
+
+    vel_yaw = quat_apply_inverse(yaw_quat(asset.data.root_quat_w), asset.data.root_lin_vel_w[:, :3])
+    vel_vertical = vel_yaw[:, 2]
+    return torch.abs(vel_vertical)
+
+def lin_vel_z(
+    env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    # extract the used quantities (to enable type-hinting)
+    asset = env.scene[asset_cfg.name]
+
+    quat = asset.data.body_link_quat_w[:,asset_cfg.body_ids,:]
+    quat_02 = quat[:,1,:]
+
+    rotation_angle = torch.tensor([-torch.pi/2, 0, 0], device=quat.device)
+    rotation_angle = rotation_angle.unsqueeze(0).repeat(quat[:,1,:].size(0) , 1)  
+    quat_22p = quat_from_euler_xyz(roll=rotation_angle[:,0], pitch=rotation_angle[:,1] , yaw=rotation_angle[:,2])
+
+    quat_02p =  quat_mul(quat_02, quat_22p)
+
+    vel_yaw_2 = quat_apply_inverse(yaw_quat(quat_02p), asset.data.body_lin_vel_w[:, 1, :3])
+    # vel_yaw = quat_apply_inverse(yaw_quat(asset.data.root_quat_w), asset.data.root_lin_vel_w[:, :3])
+    vel_vertical = vel_yaw_2[:, 2]
+    return torch.abs(vel_vertical)
+
 def track_lin_vel_xy_yaw_frame_exp(
     env, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -155,6 +302,61 @@ def track_ang_vel_z_world_exp(
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_w[:, 2])
     return torch.exp(-ang_vel_error / std**2)
 
+def leg_work(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+
+    """
+    Reward the absolute mechanical power of each leg only when the corresponding foot is in contact.
+
+    Returns:
+        Tensor of shape (num_envs,)
+    """
+    asset = env.scene[asset_cfg.name]
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+
+    # --- contact mask from foot contact forces ---
+    # net_forces_w is normal contact force in world frame
+    # shape: (num_envs, num_bodies, 3)
+    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+
+
+    # --- map joint names to indices in the articulation ---
+    joint_names = [str(x) for x in asset.data.joint_names]
+    joint_index = {name: i for i, name in enumerate(joint_names)}
+
+    leg_joint_groups = {
+        "FR": ["HAA_FR", "HFE_FR", "KFE_FR"],
+        "FL": ["HAA_FL", "HFE_FL", "KFE_FL"],
+        "HR": ["HAA_HR", "HFE_HR", "KFE_HR"],
+        "HL": ["HAA_HL", "HFE_HL", "KFE_HL"],
+    }
+
+    foot_order = ["FR", "FL", "HR", "HL"]
+
+    # --- mechanical power = sum(torque * joint_velocity) per leg ---
+    torque = asset.data.applied_torque
+    qd = asset.data.joint_vel
+
+    leg_rewards = []
+    for foot_name in foot_order:
+        ids = [joint_index[jn] for jn in leg_joint_groups[foot_name]]
+        leg_power = torch.sum(torque[:, ids] * qd[:, ids], dim=1)  # (N,)
+        leg_reward = torch.abs(leg_power)
+
+        # gate by corresponding foot contact
+        foot_id = foot_order.index(foot_name)
+        leg_reward = leg_reward * contacts[:, foot_id].float()
+
+        leg_rewards.append(leg_reward)
+
+    return torch.stack(leg_rewards, dim=1).sum(dim=1)
+
+def abs_energy(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize the energy used by the robot's joints."""
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    qvel = asset.data.joint_vel[:, asset_cfg.joint_ids]
+    qfrc = asset.data.applied_torque[:, asset_cfg.joint_ids]
+    return torch.sum(torch.abs(qvel) * torch.abs(qfrc), dim=-1)
 
 def energy(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize the energy used by the robot's joints."""
@@ -215,6 +417,43 @@ def joint_position_penalty(
     body_vel = torch.linalg.norm(asset.data.root_lin_vel_b[:, :2], dim=1)
     reward = torch.linalg.norm((asset.data.joint_pos - asset.data.default_joint_pos), dim=1)
     return torch.where(torch.logical_or(cmd > 0.0, body_vel > velocity_threshold), reward, stand_still_scale * reward)
+
+def variable_posture(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+    std_standing,
+    std_walking,
+    std_running,
+    walking_threshold: float = 0.3,
+    running_threshold: float = 1.5,
+) : 
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
+
+    linear_speed = torch.norm(cmd[:2])
+    angular_speed = torch.abs(cmd[2])
+    total_speed = linear_speed #+ angular_speed
+
+    standing_mask = (total_speed < running_threshold).float()
+    walking_mask = (
+      (total_speed >= walking_threshold) & (total_speed < running_threshold)
+    ).float()    
+    running_mask = (total_speed >= running_threshold).float()
+
+    std = (
+      std_standing * standing_mask
+      + std_walking * walking_mask
+      + std_running * running_mask
+    )
+
+    current_joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
+    desired_joint_pos = asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    error_squared = torch.square(current_joint_pos - desired_joint_pos)
+
+    return torch.exp(-torch.max(error_squared, dim=1).values / (std**2) )
+
+
 
 def trunk_position_penalty(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg,
