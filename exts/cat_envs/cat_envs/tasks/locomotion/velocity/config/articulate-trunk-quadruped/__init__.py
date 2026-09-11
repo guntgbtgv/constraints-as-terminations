@@ -27,7 +27,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Velocity-CaT-Flat-Go2-Play-v0",
+    id="Isaac-Velocity-CaT-Flat-Articulate-Trunk-Quadruped-Play",
     entry_point=CaTEnv,
     disable_env_checker=True,
     kwargs={

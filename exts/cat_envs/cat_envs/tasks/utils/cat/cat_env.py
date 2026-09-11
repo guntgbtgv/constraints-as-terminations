@@ -31,16 +31,19 @@ class CaTEnv(ManagerBasedRLEnv):
             :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
 
         """
+
+        self._trunk_limit_obs = torch.zeros((self.cfg.scene.num_envs, 1), device=self.cfg.sim.device)    
+
         super().load_managers()
         # prepare the managers
         # -- constraint manager
 
-        # self.spring_pos = torch.zeros((self.cfg.scene.num_envs,1), device=self.cfg.sim.device)
-        # # print(self.scene.articulations)
-        # # print(self.scene.articulations["robot"])
+        self.spring_pos = torch.zeros((self.cfg.scene.num_envs,1), device=self.cfg.sim.device)
+        # print(self.scene.articulations)
+        # print(self.scene.articulations["robot"])
 
-        # self.spring_joint_ids, _ = self.scene.articulations["robot"].find_joints(["trunk"])
-        # # print("spring_joint_ids: ", self.spring_joint_ids)
+        self.spring_joint_ids, _ = self.scene.articulations["robot"].find_joints(["trunk_joint"])
+        # print("spring_joint_ids: ", self.spring_joint_ids)
 
 
 

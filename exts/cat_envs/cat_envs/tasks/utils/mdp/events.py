@@ -19,9 +19,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 # df = pd.read_csv("inference_log_20260506_141531.csv")
-# df = pd.read_csv("robot_config_data_edited.csv")
+df = pd.read_csv("robot_config_data_edited_go2_modified.csv")
 # df = pd.read_csv("robot_config_data_reversed.csv")
-df = pd.read_csv("fixed_trunk_joint_data_edited.csv")
+# df = pd.read_csv("fixed_trunk_joint_data_edited.csv")
 
 # pos_cols = [col for col in df.columns if "joint_pos" in col]
 # vel_cols = [col for col in df.columns if "joint_vel"in col]
@@ -42,6 +42,95 @@ data_quat = torch.tensor(df[quat_cols].values, dtype=torch.float32)
 data_pos = torch.tensor(df[pos_cols].values, dtype=torch.float32)
 data_vel = torch.tensor(df[vel_cols].values, dtype=torch.float32)
 
+
+class set_trunk_range(ManagerTermBase):
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+
+        Raises:
+            TypeError: If `params` is not a tuple of two numbers.
+            ValueError: If the operation is not supported.
+            ValueError: If the lower bound is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound.
+        """
+        super().__init__(cfg, env)
+
+        # extract the used quantities (to enable type-hinting)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
+        self.env = env
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        trunk_range: tuple[float, float] | None = None,
+    ):
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
+
+        # resolve joint indices
+        if self.asset_cfg.joint_ids == slice(None):
+            joint_ids = slice(None)  # for optimization purposes
+        else:
+            joint_ids = torch.tensor(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
+
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids_for_slice = env_ids[:, None]
+        else:
+            env_ids_for_slice = env_ids
+
+        ranges_choices = torch.tensor(
+            [
+                list(trunk_range),
+                [-2.5, 2.5],
+            ],
+            device=self.asset.device,
+        )
+
+        idx = torch.randint(
+            0, 2,
+            (env.scene.num_envs,),
+            device=self.asset.device,
+        )
+
+        ranges = ranges_choices[idx]
+        # print("ranges: ", ranges)
+
+        # store for observation
+        self.env._trunk_limit_obs[env_ids] = ranges[env_ids_for_slice,1]
+        # print("self._trunk_limit_obs[env_ids]: ", self.env._trunk_limit_obs[env_ids])
+
+        # sample joint properties from the given ranges and set into the physics simulation
+        # joint position limits
+        if trunk_range is not None:
+            joint_pos_limits = self.asset.data.default_joint_pos_limits.clone()
+            # print("joint_pos_limits: ", joint_pos_limits[env_ids_for_slice, joint_ids, 0])
+            # print("ranges: ", ranges[env_ids_for_slice,0])
+
+            # -- the lower limits
+            joint_pos_limits[env_ids_for_slice, joint_ids, 0] = ranges[env_ids_for_slice,0]
+            # -- the upper limits
+            joint_pos_limits[env_ids_for_slice, joint_ids, 1] = ranges[env_ids_for_slice,1]
+
+            # extract the position limits for the concerned joints
+            joint_pos_limits = joint_pos_limits[env_ids_for_slice, joint_ids]
+            if (joint_pos_limits[..., 0] > joint_pos_limits[..., 1]).any():
+                raise ValueError(
+                    "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater"
+                    " than upper joint limits. Please check the distribution parameters for the joint position limits."
+                )
+            # set the position limits into the physics simulation
+            self.asset.write_joint_position_limit_to_sim(
+                joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
+            )
 
 def randomize_body_coms(
     env: ManagerBasedEnv,
@@ -257,7 +346,11 @@ def lifting_force_hind(
 
     # Base heading in world frame: rotate +x by yaw only.
     # quat_apply_yaw() is the Isaac Lab helper for yaw-only rotation. :contentReference[oaicite:1]{index=1}
-    # root_quat_w = asset.data.root_quat_w[active_env_ids_hind]  # (N, 4) in wxyz
+    root_quat_w = asset.data.root_quat_w[active_env_ids]  # (N, 4) in wxyz
+    forward_w = math_utils.quat_apply_yaw(root_quat_w, torch.tensor([1.0, 0.0, 0.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1))
+    forward_w[:, 2] = 0.0
+    forward_w = forward_w / torch.linalg.norm(forward_w, dim=1, keepdim=True).clamp_min(1e-6)
+
     # downward_w =  torch.tensor([0.0, 0.0, -1.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1)
     # downward_w[:, 2] = 0.0
     # downward_w = downward_w / torch.linalg.norm(downward_w, dim=1, keepdim=True).clamp_min(1e-6)
@@ -266,6 +359,7 @@ def lifting_force_hind(
     hind_forces = torch.zeros((active_env_ids.numel(), len(hind_body_ids), 3), device=asset.device)
     # front_forces = torch.zeros((active_env_ids_hind.numel(), len(front_body_ids), 3), device=asset.device)
 
+    # hind_forces[:, :, :2] = force_mag * forward_w[:, None, :2]
     hind_forces[:, :, 2] = force_mag
     hind_torques = torch.zeros_like(hind_forces)
 
@@ -313,7 +407,10 @@ def lifting_force_front(
 
     # Base heading in world frame: rotate +x by yaw only.
     # quat_apply_yaw() is the Isaac Lab helper for yaw-only rotation. :contentReference[oaicite:1]{index=1}
-    # root_quat_w = asset.data.root_quat_w[active_env_ids]  # (N, 4) in wxyz
+    root_quat_w = asset.data.root_quat_w[active_env_ids]  # (N, 4) in wxyz
+    forward_w = math_utils.quat_apply_yaw(root_quat_w, torch.tensor([1.0, 0.0, 0.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1))
+    forward_w[:, 2] = 0.0
+    forward_w = forward_w / torch.linalg.norm(forward_w, dim=1, keepdim=True).clamp_min(1e-6)
     # downward_w =  torch.tensor([0.0, 0.0, -1.0], device=root_quat_w.device).unsqueeze(0).repeat(root_quat_w.size(0),1)
     # downward_w[:, 2] = 0.0
     # downward_w = downward_w / torch.linalg.norm(downward_w, dim=1, keepdim=True).clamp_min(1e-6)
@@ -322,6 +419,7 @@ def lifting_force_front(
     # hind_forces = torch.zeros((active_env_ids_front.numel(), len(hind_body_ids), 3), device=asset.device)
     front_forces = torch.zeros((active_env_ids.numel(), len(front_body_ids), 3), device=asset.device)
 
+    # front_forces[:, :, :2] = force_mag * forward_w[:, None, :2]
     front_forces[:, :, 2] = force_mag
     front_torques = torch.zeros_like(front_forces)
 

@@ -59,22 +59,22 @@ agent:
   ratio_clip: 0.2
   value_clip: 0.2
   clip_predicted_values: True
-  entropy_loss_scale: 0.005
+  entropy_loss_scale: 0.01
   value_loss_scale: 1.0
   kl_threshold: 0.0
   rewards_shaper_scale: 1.0
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
-    directory: "go2_cat"
+    directory: "articulate-trunk-quadruped_cat"
     experiment_name: ""
     write_interval: auto
     checkpoint_interval: auto
-
+    wandb: True  
 
 # Sequential trainer
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
-  timesteps: 48000
+  timesteps: 96000
   environment_info: log

@@ -35,3 +35,7 @@ def root_vel_error(
         torch.square(env.command_manager.get_command(command_name)[:, :2] - vel_yaw[:, :2]), dim=1
     )
     return lin_vel_error > limit
+
+def action_range(env: ManagerBasedRLEnv, limit: float) -> torch.Tensor:
+    # print("env.action_manager.action[:,6]: ", torch.abs(env.action_manager.action[:,6]) > limit)
+    return torch.abs(env.action_manager.action[:, 6]) > limit

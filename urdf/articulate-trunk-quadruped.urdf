@@ -10,9 +10,9 @@
   <!-- Link base_link -->
   <link name="base_link">
     <inertial>
-      <origin xyz="0.00916667 -1.38778e-17 -6.58845e-17" rpy="0 0 0"/>
-      <mass value="3.456"/>
-      <inertia ixx="0.0131328" ixy="-3.09174e-23" ixz="-8.72937e-17" iyy="0.003684" iyz="1.31359e-30" izz="0.0135912"/>
+      <origin xyz="0.00916667 -1.38778e-17 -6.52227e-17" rpy="0 0 0"/>
+      <mass value="0.9216"/>
+      <inertia ixx="0.00350208" ixy="-8.24464e-24" ixz="-2.32783e-17" iyy="0.0009824" iyz="3.5029e-31" izz="0.00362432"/>
     </inertial>
     <!-- Part part_1 -->
     <collision>
@@ -34,9 +34,9 @@
   <!-- Link base_link_2 -->
   <link name="base_link_2">
     <inertial>
-      <origin xyz="-0.0591667 1.98523e-18 -1.38778e-17" rpy="0 0 0"/>
-      <mass value="3.456"/>
-      <inertia ixx="0.0131328" ixy="9.32286e-35" ixz="-5.69908e-39" iyy="0.0135912" iyz="-8.61837e-42" izz="0.003684"/>
+      <origin xyz="-0.0591667 2.64698e-18 -1.38778e-17" rpy="0 0 0"/>
+      <mass value="0.9216"/>
+      <inertia ixx="0.00350208" ixy="2.4861e-35" ixz="-1.51976e-39" iyy="0.00362432" iyz="-2.29823e-42" izz="0.0009824"/>
     </inertial>
     <!-- Part part_1_2 -->
     <collision>
@@ -59,8 +59,8 @@
   <link name="hip_link">
     <inertial>
       <origin xyz="-0.0266667 3.49814e-16 -0.0716667" rpy="0 0 0"/>
-      <mass value="0.603186"/>
-      <inertia ixx="0.00136943" ixy="1.05623e-17" ixz="-0.000391401" iyy="0.00202959" iyz="5.1344e-18" izz="0.00141414"/>
+      <mass value="1.69646"/>
+      <inertia ixx="0.00385153" ixy="2.97066e-17" ixz="-0.00110081" iyy="0.00570821" iyz="1.44405e-17" izz="0.00397726"/>
     </inertial>
     <!-- Part actuator -->
     <collision>
@@ -114,7 +114,7 @@
   <!-- Link thigh_link -->
   <link name="thigh_link">
     <inertial>
-      <origin xyz="5.62981e-15 -0.105 2.97783e-17" rpy="0 0 0"/>
+      <origin xyz="5.62998e-15 -0.105 2.97476e-17" rpy="0 0 0"/>
       <mass value="1.29293"/>
       <inertia ixx="0.0049239" ixy="2.49073e-16" ixz="-4.8319e-23" iyy="0.000344781" iyz="2.80391e-19" izz="0.0049239"/>
     </inertial>
@@ -138,7 +138,7 @@
   <!-- Link shank_link -->
   <link name="shank_link">
     <inertial>
-      <origin xyz="-8.2833e-17 -0.105 1.1174e-18" rpy="0 0 0"/>
+      <origin xyz="-8.29638e-17 -0.105 1.1174e-18" rpy="0 0 0"/>
       <mass value="0.198828"/>
       <inertia ixx="0.000745605" ixy="7.74809e-19" ixz="-2.50722e-32" iyy="2.98242e-05" iyz="-4.38289e-20" izz="0.000745605"/>
     </inertial>
@@ -219,8 +219,8 @@
   <link name="hip_link_mirrored">
     <inertial>
       <origin xyz="0.0266667 9.94695e-17 -0.0716667" rpy="0 0 0"/>
-      <mass value="0.603186"/>
-      <inertia ixx="0.00136943" ixy="8.21615e-18" ixz="0.000391401" iyy="0.00202959" iyz="2.17887e-18" izz="0.00141414"/>
+      <mass value="1.69646"/>
+      <inertia ixx="0.00385153" ixy="2.31079e-17" ixz="0.00110081" iyy="0.00570821" iyz="6.12807e-18" izz="0.00397726"/>
     </inertial>
     <!-- Part actuator_4 -->
     <collision>
@@ -274,7 +274,7 @@
   <!-- Link thigh_link_2 -->
   <link name="thigh_link_2">
     <inertial>
-      <origin xyz="6.43472e-15 -0.105 2.02276e-18" rpy="0 0 0"/>
+      <origin xyz="6.43489e-15 -0.105 1.99206e-18" rpy="0 0 0"/>
       <mass value="1.29293"/>
       <inertia ixx="0.0049239" ixy="2.69398e-16" ixz="4.69989e-25" iyy="0.000344781" iyz="-2.8039e-19" izz="0.0049239"/>
     </inertial>
@@ -298,7 +298,7 @@
   <!-- Link shank_link_2 -->
   <link name="shank_link_2">
     <inertial>
-      <origin xyz="-1.10589e-16 -0.105 2.8873e-17" rpy="0 0 0"/>
+      <origin xyz="-1.10719e-16 -0.105 2.8873e-17" rpy="0 0 0"/>
       <mass value="0.198828"/>
       <inertia ixx="0.000745605" ixy="8.6359e-19" ixz="-7.11684e-26" iyy="2.98242e-05" iyz="-4.38289e-20" izz="0.000745605"/>
     </inertial>
@@ -387,8 +387,8 @@
   <link name="hip_link_2">
     <inertial>
       <origin xyz="0.0266667 1.29925e-16 0.0716667" rpy="0 0 0"/>
-      <mass value="0.603186"/>
-      <inertia ixx="0.00136943" ixy="-1.66645e-17" ixz="-0.000391401" iyy="0.00202959" iyz="-3.43047e-18" izz="0.00141414"/>
+      <mass value="1.69646"/>
+      <inertia ixx="0.00385153" ixy="-4.68689e-17" ixz="-0.00110081" iyy="0.00570821" iyz="-9.6482e-18" izz="0.00397726"/>
     </inertial>
     <!-- Part actuator_7 -->
     <collision>
@@ -442,7 +442,7 @@
   <!-- Link thigh_link_3 -->
   <link name="thigh_link_3">
     <inertial>
-      <origin xyz="8.74758e-15 0.105 -2.57328e-17" rpy="0 0 0"/>
+      <origin xyz="8.74741e-15 0.105 -2.57635e-17" rpy="0 0 0"/>
       <mass value="1.29293"/>
       <inertia ixx="0.0049239" ixy="-4.11493e-16" ixz="3.74282e-23" iyy="0.000344781" iyz="-3.25441e-19" izz="0.0049239"/>
     </inertial>
@@ -466,7 +466,7 @@
   <!-- Link shank_link_3 -->
   <link name="shank_link_3">
     <inertial>
-      <origin xyz="4.33681e-19 -0.105 -2.66382e-17" rpy="0 0 0"/>
+      <origin xyz="3.02888e-19 -0.105 -2.66382e-17" rpy="0 0 0"/>
       <mass value="0.198828"/>
       <inertia ixx="0.000745605" ixy="1.85902e-20" ixz="-5.37961e-25" iyy="2.98242e-05" iyz="1.23572e-20" izz="0.000745605"/>
     </inertial>
@@ -547,8 +547,8 @@
   <link name="hip_link_mirrored_2">
     <inertial>
       <origin xyz="-0.0266667 2.65239e-18 0.0716667" rpy="0 0 0"/>
-      <mass value="0.603186"/>
-      <inertia ixx="0.00136943" ixy="1.16637e-18" ixz="0.000391401" iyy="0.00202959" iyz="-1.05241e-18" izz="0.00141414"/>
+      <mass value="1.69646"/>
+      <inertia ixx="0.00385153" ixy="3.28042e-18" ixz="0.00110081" iyy="0.00570821" iyz="-2.95991e-18" izz="0.00397726"/>
     </inertial>
     <!-- Part actuator_10 -->
     <collision>
@@ -602,7 +602,7 @@
   <!-- Link thigh_link_4 -->
   <link name="thigh_link_4">
     <inertial>
-      <origin xyz="-6.6156e-16 0.105 -1.64511e-16" rpy="0 0 0"/>
+      <origin xyz="-6.61733e-16 0.105 -1.64541e-16" rpy="0 0 0"/>
       <mass value="1.29293"/>
       <inertia ixx="0.0049239" ixy="-4.15174e-18" ixz="4.13515e-23" iyy="0.000344781" iyz="7.77942e-18" izz="0.0049239"/>
     </inertial>
@@ -626,7 +626,7 @@
   <!-- Link shank_link_4 -->
   <link name="shank_link_4">
     <inertial>
-      <origin xyz="-2.73219e-17 -0.105 -2.66382e-17" rpy="0 0 0"/>
+      <origin xyz="-2.74527e-17 -0.105 -2.66382e-17" rpy="0 0 0"/>
       <mass value="0.198828"/>
       <inertia ixx="0.000745605" ixy="2.5827e-19" ixz="-5.07645e-33" iyy="2.98242e-05" iyz="4.38289e-20" izz="0.000745605"/>
     </inertial>
