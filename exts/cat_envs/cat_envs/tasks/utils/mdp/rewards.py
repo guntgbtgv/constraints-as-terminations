@@ -64,7 +64,7 @@ def foot_touchdown_normal_force(
 def leg_extension(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
 
     """
-    Reward the extension of each leg only when the corresponding foot is in contact.
+    Reward the extension of each leg only when the corresponding foot is making contact.
 
     Returns:
         Tensor of shape (num_envs,)
@@ -75,7 +75,8 @@ def leg_extension(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg:
     # --- contact mask from foot contact forces ---
     # net_forces_w is normal contact force in world frame
     # shape: (num_envs, num_bodies, 3)
-    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+    # contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+    touchdown = contact_sensor.compute_first_contact(env.step_dt)[:, asset_cfg.body_ids]
 
 
     # --- map joint names to indices in the articulation ---
@@ -83,31 +84,39 @@ def leg_extension(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg:
     joint_index = {name: i for i, name in enumerate(joint_names)}
 
     leg_joint_groups = {
-        "FR": ["HFE_FR", "KFE_FR"],
-        "FL": ["HFE_FL", "KFE_FL"],
-        "HR": ["HFE_HR", "KFE_HR"],
-        "HL": ["HFE_HL", "KFE_HL"],
+        # "FR": ["HFE_FR", "KFE_FR"],
+        # "FL": ["HFE_FL", "KFE_FL"],
+        # "HR": ["HFE_HR", "KFE_HR"],
+        # "HL": ["HFE_HL", "KFE_HL"],
+        "FR": ["FR_thigh_joint", "FR_calf_joint"],
+        "FL": ["FL_thigh_joint", "FL_calf_joint"],
+        "HR": ["RR_thigh_joint", "RR_calf_joint"],
+        "HL": ["RL_thigh_joint", "RL_calf_joint"],        
     }
 
     foot_order = ["FR", "FL", "HR", "HL"]
     
     extended_pos = torch.zeros_like(asset.data.joint_pos)
-    extended_pos[:,joint_index["HFE_FR"]] = 1.5
-    extended_pos[:,joint_index["HFE_FL"]] = 1.5
-    extended_pos[:,joint_index["HFE_HR"]] = 1.5
-    extended_pos[:,joint_index["HFE_HL"]] = 1.5
+    extended_pos[:,joint_index["FR_thigh_joint"]] = 0.5
+    extended_pos[:,joint_index["FL_thigh_joint"]] = 0.5
+    extended_pos[:,joint_index["RR_thigh_joint"]] = 0.5
+    extended_pos[:,joint_index["RL_thigh_joint"]] = 0.5    
+    extended_pos[:,joint_index["FR_calf_joint"]] = -0.5
+    extended_pos[:,joint_index["FL_calf_joint"]] = -0.5
+    extended_pos[:,joint_index["RR_calf_joint"]] = -0.5
+    extended_pos[:,joint_index["RL_calf_joint"]] = -0.5
 
 
     leg_rewards = []
     for foot_name in foot_order:
         ids = [joint_index[jn] for jn in leg_joint_groups[foot_name]]
 
-        leg_reward = torch.linalg.norm((asset.data.joint_pos[:,ids] - extended_pos[:,ids]), dim=1)
+        leg_reward = torch.exp(-torch.sum(torch.square(asset.data.joint_pos[:,ids] - extended_pos[:,ids]), dim=1)/(0.5**2))
 
 
         # gate by corresponding foot contact
         foot_id = foot_order.index(foot_name)
-        leg_reward = leg_reward * contacts[:, foot_id].float()
+        leg_reward = leg_reward * touchdown[:, foot_id].float()
 
         leg_rewards.append(leg_reward)
 
